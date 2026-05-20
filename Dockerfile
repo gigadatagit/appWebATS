@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     APP_ENV=production \
     ATS_PDF_ENGINE=libreoffice \
     SUPABASE_STORAGE_BUCKET=ATSDocumentos \
-    PORT=3000
+    PORT=10000
 
 WORKDIR /app
 
@@ -29,6 +29,6 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
 
 COPY . .
 
-EXPOSE 3000
+EXPOSE 10000
 
-CMD ["sh", "-c", "if [ -z \"${DATABASE_URL}\" ]; then echo \"ERROR: DATABASE_URL is required in container runtime to avoid SQLite fallback.\" >&2; exit 1; fi; python -m reflex run --env prod --single-port --backend-host 0.0.0.0 --backend-port ${PORT:-3000}"]
+CMD ["sh", "-c", "if [ -z \"${DATABASE_URL}\" ]; then echo \"ERROR: DATABASE_URL is required in container runtime to avoid SQLite fallback.\" >&2; exit 1; fi; python -m reflex run --env prod --single-port --backend-host 0.0.0.0 --backend-port ${PORT:-10000}"]
