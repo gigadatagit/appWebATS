@@ -5,3 +5,4 @@ python-dotenv
 psycopg2-binary==2.9.12
 supabase==2.30.0
 sqlalchemy>=2.0,<2.1
+alembic>=1.13,<2
