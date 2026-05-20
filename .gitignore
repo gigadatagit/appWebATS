@@ -112,3 +112,9 @@ pnpm-debug.log*
 # =========================
 .alembic/
 alembic.ini
+alembic/
+alembic/README
+alembic/env.py
+alembic/script.py.mako
+alembic/versions/
+alembic/versions/*.py
