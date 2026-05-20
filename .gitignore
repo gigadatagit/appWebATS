@@ -1,7 +1,7 @@
 __pycache__/
 assets/external/
 assets/documentos/
-assets/
+assets/img/
 .states
 *.py[cod]
 *.db
