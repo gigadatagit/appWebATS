@@ -57,6 +57,17 @@ class SessionState(rx.State):
         self.clear_login_form()
         return rx.redirect("/login")
 
+    def _resolve_authenticated_home_route(self) -> str:
+        role_code = str(self.current_user_role_codigo or self.rol_codigo or "").strip().upper()
+        if role_code == "ADMIN":
+            return "/admin/dashboard"
+        return "/ats/formato"
+
+    def redirect_authenticated_home(self):
+        if not self.is_authenticated:
+            return
+        return rx.redirect(self._resolve_authenticated_home_route())
+
     def set_email(self, email: str):
         self.email = email
 
@@ -127,6 +138,4 @@ class SessionState(rx.State):
             self.is_authenticated = True
             self.password = ""
 
-        if self.current_user_role_codigo == "ADMIN":
-            return rx.redirect("/admin/dashboard")
-        return rx.redirect("/ats/formato")
+        return rx.redirect(self._resolve_authenticated_home_route())

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 from dotenv import load_dotenv
 
@@ -94,6 +95,8 @@ def get_supabase_storage_bucket() -> str:
 def normalize_ats_pdf_engine(value: str | None) -> str:
     raw = str(value or "").strip().lower()
     if raw == "":
+        if sys.platform.startswith("linux"):
+            return "libreoffice"
         return DEFAULT_ATS_PDF_ENGINE
     if raw not in {"word", "libreoffice"}:
         raise RuntimeError(

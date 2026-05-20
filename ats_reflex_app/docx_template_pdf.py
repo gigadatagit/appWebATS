@@ -4,6 +4,7 @@ import base64
 import importlib.util
 import io
 import subprocess
+import sys
 import tempfile
 import unicodedata
 from copy import deepcopy
@@ -28,6 +29,11 @@ def _summarize_word_error(exc: Exception) -> str:
     raw = str(exc or "").strip()
     lowered = raw.lower()
 
+    if "not implemented for linux" in lowered:
+        return (
+            "El motor PDF 'word' no es compatible con Linux. "
+            "Configura ATS_PDF_ENGINE=libreoffice y asegurate de tener 'soffice' disponible."
+        )
     if "2147023584" in raw or "sesion de inicio" in lowered or "session" in lowered:
         return (
             "Word no puede iniciarse en la sesion actual de Windows. "
@@ -843,6 +849,11 @@ def generate_pdf_from_template(
         raise FileNotFoundError(f"No existe la plantilla DOCX: {template_path}")
 
     selected_engine = normalize_ats_pdf_engine(engine or get_ats_pdf_engine())
+    if selected_engine == "word" and sys.platform.startswith("linux"):
+        raise RuntimeError(
+            "ATS_PDF_ENGINE=word no es compatible con Linux. "
+            "Usa ATS_PDF_ENGINE=libreoffice y valida que 'soffice' este instalado en runtime."
+        )
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
     build_prefix = "ats_word_build_" if selected_engine == "word" else "ats_libreoffice_build_"
     with tempfile.TemporaryDirectory(prefix=build_prefix) as tmp_dir:

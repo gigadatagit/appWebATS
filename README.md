@@ -28,7 +28,8 @@ SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_ANON_KEY=<anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key-backend-only>
 SUPABASE_STORAGE_BUCKET=ATSDocumentos
-ATS_PDF_ENGINE=word
+# Opcional override manual (si vacio, se autodetecta por SO)
+ATS_PDF_ENGINE=
 SUPABASE_SIGNED_URL_TTL_SECONDS=600
 # Opcional:
 SUPABASE_JWT_SECRET=
@@ -43,6 +44,7 @@ SUPABASE_JWT_SECRET=
 - `SUPABASE_SERVICE_ROLE_KEY` es solo backend (nunca frontend/estado UI/logs).
 - `SUPABASE_STORAGE_BUCKET` debe apuntar al bucket privado (`ATSDocumentos`).
 - `ATS_PDF_ENGINE`:
+  - Si no se define: `linux -> libreoffice`, otros SO -> `word`.
   - `word`: entorno local Windows con Microsoft Word + `docx2pdf`.
   - `libreoffice`: entorno Linux/Railway con `soffice --headless`.
 - `SUPABASE_SIGNED_URL_TTL_SECONDS` controla vigencia de URL firmada en historial (default 600s).

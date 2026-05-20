@@ -5,6 +5,6 @@ Coloca aqui la plantilla Word usada para generar el PDF del ATS.
 
 Notas:
 - Si el archivo no existe, la app detiene la generacion y muestra error.
-- Para conversion DOCX -> PDF con plantilla, instala `python-docx` y `docx2pdf`.
-- En Windows, `docx2pdf` usa Microsoft Word para la conversion.
-- No hay fallback a otros motores de conversion en esta fase.
+- El llenado del template se hace con `python-docx`.
+- En Windows, la conversion DOCX -> PDF puede usar `docx2pdf` (requiere Microsoft Word).
+- En Linux, usa `libreoffice` (`soffice --headless`) para la conversion a PDF.
