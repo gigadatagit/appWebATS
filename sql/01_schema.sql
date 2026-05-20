@@ -230,6 +230,7 @@ CREATE TABLE ats_paso_peligro (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ats_paso_id INTEGER NOT NULL,
     ats_peligro_id INTEGER NOT NULL,
+    descripcion_otro TEXT,
     FOREIGN KEY (ats_paso_id) REFERENCES ats_paso(id) ON DELETE CASCADE,
     FOREIGN KEY (ats_peligro_id) REFERENCES ats_peligro(id) ON DELETE CASCADE,
     UNIQUE (ats_paso_id, ats_peligro_id)
@@ -456,6 +457,7 @@ SELECT
     p.numero_paso,
     p.descripcion_paso,
     app.id AS ats_paso_peligro_id,
+    app.descripcion_otro AS peligro_descripcion_otro,
     pc.id AS peligro_catalogo_id,
     pc.codigo AS peligro_codigo,
     pc.nombre AS peligro_nombre,

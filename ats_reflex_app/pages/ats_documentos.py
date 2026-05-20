@@ -4,7 +4,15 @@ import reflex as rx
 
 from ..state import AtsFormState
 from ..template import protected_page
-from ..styles import CARD_STYLE, CALLOUT_STYLE, PRIMARY_BUTTON_STYLE, SECONDARY_BUTTON_STYLE, SELECT_TRIGGER_STYLE, TABLE_SCROLL_STYLE
+from ..styles import (
+    CARD_STYLE,
+    CALLOUT_STYLE,
+    INPUT_STYLE,
+    PRIMARY_BUTTON_STYLE,
+    SECONDARY_BUTTON_STYLE,
+    SELECT_TRIGGER_STYLE,
+    TABLE_SCROLL_STYLE,
+)
 
 
 @rx.page(route="/ats/documentos", title="Documentos ATS", on_load=AtsFormState.load_documentos_page_data)
@@ -17,6 +25,12 @@ def ats_documentos_page() -> rx.Component:
                 color="#64748b",
             ),
             rx.box(
+                rx.input(
+                    placeholder="Buscar ATS por fecha, numero/codigo o empresa/persona (minimo 2 caracteres)",
+                    value=AtsFormState.documento_search_query,
+                    on_change=AtsFormState.set_documento_search_query,
+                    **INPUT_STYLE,
+                ),
                 rx.select.root(
                     rx.select.trigger(placeholder="Selecciona un ATS", **SELECT_TRIGGER_STYLE),
                     rx.select.content(
@@ -107,11 +121,15 @@ def ats_documentos_page() -> rx.Component:
                                 rx.table.cell(row["version_str"]),
                                 rx.table.cell(row["created_at"]),
                                 rx.table.cell(
-                                    rx.link(
-                                        "Ver PDF",
-                                        href=row["archivo_url"],
-                                        target="_blank",
-                                        rel="noopener noreferrer",
+                                    rx.cond(
+                                        row["archivo_url"] != "",
+                                        rx.link(
+                                            "Ver PDF",
+                                            href=row["archivo_url"],
+                                            target="_blank",
+                                            rel="noopener noreferrer",
+                                        ),
+                                        rx.badge("No disponible", variant="soft", color_scheme="gray"),
                                     ),
                                 ),
                             ),

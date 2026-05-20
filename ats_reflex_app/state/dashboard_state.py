@@ -79,6 +79,26 @@ class DashboardState(rx.State):
             colored_rows.append(colored_row)
         return colored_rows
 
+    @classmethod
+    def _build_alto_riesgo_pie(cls, alto: int, no_alto: int) -> list[dict]:
+        alto_value = int(alto or 0)
+        no_alto_value = int(no_alto or 0)
+        dark_fill = "#14532d"
+        light_fill = "#dcfce7"
+
+        # Regla estable en empate: Alto riesgo oscuro, No alto riesgo claro.
+        if alto_value >= no_alto_value:
+            alto_fill = dark_fill
+            no_alto_fill = light_fill
+        else:
+            alto_fill = light_fill
+            no_alto_fill = dark_fill
+
+        return [
+            {"name": "Alto riesgo", "value": alto_value, "fill": alto_fill},
+            {"name": "No alto riesgo", "value": no_alto_value, "fill": no_alto_fill},
+        ]
+
     @staticmethod
     def _filtered_ats_cte() -> str:
         return """
@@ -95,8 +115,8 @@ class DashboardState(rx.State):
                 JOIN rol r ON r.id = u.rol_id
                 WHERE UPPER(r.codigo) = 'SISO'
                   AND (:usuario_id = 0 OR u.id = :usuario_id)
-                  AND (:fecha_inicio = '' OR a.fecha_elaboracion >= :fecha_inicio)
-                  AND (:fecha_fin = '' OR a.fecha_elaboracion <= :fecha_fin)
+                  AND (:fecha_inicio IS NULL OR a.fecha_elaboracion >= :fecha_inicio)
+                  AND (:fecha_fin IS NULL OR a.fecha_elaboracion <= :fecha_fin)
             )
         """
 
@@ -223,7 +243,7 @@ class DashboardState(rx.State):
 
     @rx.var
     def has_alto_riesgo_data(self) -> bool:
-        return len(self.ats_alto_riesgo_pie) > 0
+        return any(int(item.get("value", 0) or 0) > 0 for item in self.ats_alto_riesgo_pie)
 
     def _reset_metrics(self):
         self.total_ats = 0
@@ -251,7 +271,7 @@ class DashboardState(rx.State):
                     FROM usuario u
                     JOIN rol r ON r.id = u.rol_id
                     WHERE UPPER(r.codigo) = 'SISO'
-                      AND u.activo = 1
+                      AND u.activo IS TRUE
                     ORDER BY label ASC
                     """
                 )
@@ -313,10 +333,12 @@ class DashboardState(rx.State):
         with rx.session() as session:
             self._load_siso_user_options(session)
             date_start, date_end = self._resolved_date_range()
+            parsed_start = date.fromisoformat(date_start) if date_start else None
+            parsed_end = date.fromisoformat(date_end) if date_end else None
             params = {
                 "usuario_id": int(self.selected_siso_user_id or 0),
-                "fecha_inicio": date_start,
-                "fecha_fin": date_end,
+                "fecha_inicio": parsed_start,
+                "fecha_fin": parsed_end,
             }
             base_cte = self._filtered_ats_cte()
 
@@ -341,7 +363,7 @@ class DashboardState(rx.State):
                         + """
                         SELECT COUNT(*) AS total
                         FROM filtered_ats
-                        WHERE actividad_alto_riesgo = 1
+                        WHERE actividad_alto_riesgo IS TRUE
                         """
                     ),
                     params,
@@ -587,11 +609,11 @@ class DashboardState(rx.State):
                         base_cte
                         + """
                         SELECT
-                            SUBSTR(fa.fecha_elaboracion, 1, 7) AS periodo,
+                            TO_CHAR(fa.fecha_elaboracion, 'YYYY-MM') AS periodo,
                             COUNT(*) AS total
                         FROM filtered_ats fa
-                        WHERE LENGTH(TRIM(COALESCE(fa.fecha_elaboracion, ''))) >= 7
-                        GROUP BY SUBSTR(fa.fecha_elaboracion, 1, 7)
+                        WHERE fa.fecha_elaboracion IS NOT NULL
+                        GROUP BY TO_CHAR(fa.fecha_elaboracion, 'YYYY-MM')
                         ORDER BY periodo ASC
                         """
                     ),
@@ -608,7 +630,7 @@ class DashboardState(rx.State):
                 for row in mes_rows
             ]
 
-            self.ats_alto_riesgo_pie = [
-                {"name": "Alto riesgo", "value": int(self.total_alto_riesgo or 0)},
-                {"name": "No alto riesgo", "value": int(self.total_no_alto_riesgo or 0)},
-            ]
+            self.ats_alto_riesgo_pie = self._build_alto_riesgo_pie(
+                alto=int(self.total_alto_riesgo or 0),
+                no_alto=int(self.total_no_alto_riesgo or 0),
+            )

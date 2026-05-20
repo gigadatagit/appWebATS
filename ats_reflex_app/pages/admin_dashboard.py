@@ -133,8 +133,6 @@ def admin_dashboard_page() -> rx.Component:
             metric_card("Alto riesgo", DashboardState.total_alto_riesgo),
             metric_card("No alto riesgo", DashboardState.total_no_alto_riesgo),
             metric_card("% Alto riesgo", DashboardState.porcentaje_alto_riesgo),
-            metric_card("ATS cerrados", DashboardState.total_cerrados, DashboardState.porcentaje_cerrados),
-            metric_card("ATS documentados", DashboardState.total_documentados, DashboardState.porcentaje_documentados),
             columns={"base": "1", "md": "2", "xl": "3"},
             spacing="4",
             width="100%",
@@ -269,6 +267,10 @@ def admin_dashboard_page() -> rx.Component:
                         rx.recharts.graphing_tooltip(),
                         rx.recharts.legend(vertical_align="bottom"),
                         rx.recharts.pie(
+                            rx.foreach(
+                                DashboardState.ats_alto_riesgo_pie,
+                                lambda row: rx.recharts.cell(fill=row["fill"]),
+                            ),
                             data=DashboardState.ats_alto_riesgo_pie,
                             data_key="value",
                             name_key="name",

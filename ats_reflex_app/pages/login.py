@@ -7,7 +7,6 @@ from ..state import SessionState
 from ..styles import (
     BASE_PAGE_STYLE,
     CARD_STYLE,
-    INFO_SURFACE_STYLE,
     INPUT_STYLE,
     PAGE_SUBTITLE_STYLE,
     PAGE_TITLE_STYLE,
@@ -25,9 +24,9 @@ def login_page() -> rx.Component:
                     width="100%",
                 ),
                 rx.vstack(
-                    rx.heading("Iniciar sesion", text_align="center", **PAGE_TITLE_STYLE),
+                    rx.heading("Iniciar sesion", align="center", text_align="center", **PAGE_TITLE_STYLE),
                     rx.text(
-                        "Ingresa tus credenciales para continuar con el flujo ATS.",
+                        "Ingresa tu correo y contrasena para continuar con el flujo ATS.",
                         text_align="center",
                         **PAGE_SUBTITLE_STYLE,
                     ),
@@ -35,11 +34,11 @@ def login_page() -> rx.Component:
                     width="100%",
                 ),
                 rx.vstack(
-                    rx.text("Usuario", size="2", font_weight="600", color="#0f172a"),
+                    rx.text("Correo", size="2", font_weight="600", color="#0f172a"),
                     rx.input(
-                        placeholder="Ingresa tu usuario",
-                        value=SessionState.username,
-                        on_change=SessionState.set_username,
+                        placeholder="Ingresa tu correo",
+                        value=SessionState.email,
+                        on_change=SessionState.set_email,
                         auto_complete=True,
                         **INPUT_STYLE,
                     ),
@@ -81,16 +80,6 @@ def login_page() -> rx.Component:
                     on_click=SessionState.login,
                     width="100%",
                     **PRIMARY_BUTTON_STYLE,
-                ),
-                rx.box(
-                    rx.vstack(
-                        rx.text("Usuarios demo", font_weight="700", text_align="center", color="#0f172a"),
-                        rx.text("admin / Admin123*", size="2", text_align="center", color="#475569"),
-                        rx.text("siso / Siso123*", size="2", text_align="center", color="#475569"),
-                        spacing="1",
-                        width="100%",
-                    ),
-                    **INFO_SURFACE_STYLE,
                 ),
                 spacing="4",
                 width="100%",

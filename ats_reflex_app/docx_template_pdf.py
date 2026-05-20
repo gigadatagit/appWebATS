@@ -3,11 +3,14 @@
 import base64
 import importlib.util
 import io
+import subprocess
 import tempfile
 import unicodedata
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+
+from .config import get_ats_pdf_engine, normalize_ats_pdf_engine
 
 
 CHECK_ON = "\u2612"
@@ -37,6 +40,18 @@ def _summarize_word_error(exc: Exception) -> str:
     if raw:
         return raw
     return "Fallo desconocido al convertir con Word/docx2pdf."
+
+
+def _summarize_libreoffice_error(exc: Exception) -> str:
+    raw = str(exc or "").strip()
+    lowered = raw.lower()
+    if "soffice" in lowered and ("not found" in lowered or "no such file" in lowered):
+        return "LibreOffice no esta disponible. Instala el binario 'soffice' en el entorno."
+    if "permission" in lowered or "permiso" in lowered or "access is denied" in lowered:
+        return "LibreOffice no tiene permisos para generar el PDF temporal."
+    if raw:
+        return raw
+    return "Fallo desconocido al convertir con LibreOffice."
 
 
 def _normalize_text(value: Any) -> str:
@@ -282,13 +297,15 @@ def _extract_step_peligros(step_item: dict[str, Any]) -> list[dict[str, Any]]:
                 continue
             peligro_numero = _safe_int(item.get("peligro_numero"), 0)
             peligro_nombre = _normalize_text(item.get("peligro_nombre") or item.get("nombre"))
+            descripcion_otro = _normalize_text(item.get("descripcion_otro"))
             controles = _extract_control_texts(item.get("controles", []))
-            if peligro_numero <= 0 and peligro_nombre == "" and not controles:
+            if peligro_numero <= 0 and peligro_nombre == "" and descripcion_otro == "" and not controles:
                 continue
             out.append(
                 {
                     "peligro_numero": peligro_numero,
                     "peligro_nombre": peligro_nombre,
+                    "descripcion_otro": descripcion_otro,
                     "controles": controles,
                 }
             )
@@ -311,6 +328,7 @@ def _extract_step_peligros(step_item: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "peligro_numero": 0,
             "peligro_nombre": " | ".join(danger_parts),
+            "descripcion_otro": "",
             "controles": control_parts,
         }
     ]
@@ -391,16 +409,15 @@ def _map_context_to_template_data(context: dict[str, Any]) -> dict[str, Any]:
             if extra:
                 cert_flags["otroCual"] = extra
 
-    otros_peligros = ""
-    for p in peligros:
-        nombre = _normalize_key(str(p.get("nombre") or ""))
-        if "otro" in nombre and _normalize_text(p.get("descripcion_otro")):
-            otros_peligros = _normalize_text(p.get("descripcion_otro"))
-            break
+    otros_peligros_list: list[str] = []
 
     pasos_template: list[dict[str, Any]] = []
     for item in pasos:
         peligros_detalle = _extract_step_peligros(item)
+        for peligro in peligros_detalle:
+            detalle = _normalize_text(peligro.get("descripcion_otro"))
+            if detalle and detalle not in otros_peligros_list:
+                otros_peligros_list.append(detalle)
         peligros_asociados = _normalize_text(item.get("peligros_asociados"))
         if peligros_asociados == "" and peligros_detalle:
             peligros_asociados = " | ".join(
@@ -436,6 +453,14 @@ def _map_context_to_template_data(context: dict[str, Any]) -> dict[str, Any]:
                 "controlesARealizar": controles_aplicados,
             }
         )
+
+    if not otros_peligros_list:
+        for p in peligros:
+            nombre = _normalize_key(str(p.get("nombre") or ""))
+            detalle = _normalize_text(p.get("descripcion_otro"))
+            if "otro" in nombre and detalle and detalle not in otros_peligros_list:
+                otros_peligros_list.append(detalle)
+    otros_peligros = " | ".join(otros_peligros_list)
 
     trabajadores_template = [
         {
@@ -611,11 +636,18 @@ def _fill_steps_table(doc, data: dict[str, Any]) -> None:
 
             peligro_numero = int(peligro.get("peligro_numero") or 0)
             peligro_nombre = _normalize_text(peligro.get("peligro_nombre"))
+            descripcion_otro = _normalize_text(peligro.get("descripcion_otro"))
             peligro_texto = (
                 f"P{peligro_numero} - {peligro_nombre}"
                 if peligro_numero > 0 and peligro_nombre != ""
                 else peligro_nombre
             )
+            if descripcion_otro:
+                peligro_texto = (
+                    f"{peligro_texto}\nDetalle OTRO: {descripcion_otro}"
+                    if peligro_texto
+                    else f"Detalle OTRO: {descripcion_otro}"
+                )
             _write_cell_text(subrow.cells[2], peligro_texto, size_pt=9)
 
             controles = [str(control or "").strip() for control in peligro.get("controles", []) if str(control or "").strip() != ""]
@@ -750,13 +782,13 @@ def ensure_word_conversion_ready():
         _WORD_VALIDATION_DONE = True
 
 
-def _convert_docx_to_pdf(docx_path: Path, output_pdf_path: Path):
+def _convert_docx_to_pdf_word(docx_path: Path, output_pdf_path: Path):
     try:
         from docx2pdf import convert  # type: ignore
 
         output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
         convert(str(docx_path), str(output_pdf_path))
-        if output_pdf_path.exists():
+        if output_pdf_path.exists() and output_pdf_path.stat().st_size > 0:
             return
     except Exception as exc:
         raise RuntimeError(_summarize_word_error(exc)) from exc
@@ -764,18 +796,90 @@ def _convert_docx_to_pdf(docx_path: Path, output_pdf_path: Path):
     raise RuntimeError("Word/docx2pdf no genero el archivo PDF esperado.")
 
 
-def generate_pdf_from_template(context: dict[str, Any], template_path: Path, output_pdf_path: Path) -> Path:
+def _convert_docx_to_pdf_libreoffice(docx_path: Path, output_pdf_path: Path):
+    output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        "soffice",
+        "--headless",
+        "--convert-to",
+        "pdf:writer_pdf_Export",
+        "--outdir",
+        str(output_pdf_path.parent),
+        str(docx_path),
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except Exception as exc:
+        raise RuntimeError(_summarize_libreoffice_error(exc)) from exc
+
+    if result.returncode != 0:
+        details = (result.stderr or result.stdout or "").strip()
+        message = f"LibreOffice devolvio codigo {result.returncode}."
+        if details:
+            message += f" {details}"
+        raise RuntimeError(_summarize_libreoffice_error(RuntimeError(message)))
+
+    generated_pdf = output_pdf_path.parent / f"{docx_path.stem}.pdf"
+    if not generated_pdf.exists() or generated_pdf.stat().st_size <= 0:
+        raise RuntimeError("LibreOffice no genero el archivo PDF esperado.")
+
+    if generated_pdf.resolve() != output_pdf_path.resolve():
+        output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+        generated_pdf.replace(output_pdf_path)
+
+
+def generate_pdf_from_template(
+    context: dict[str, Any],
+    template_path: Path,
+    output_pdf_path: Path,
+    engine: str | None = None,
+) -> Path:
     if not template_path.exists():
         raise FileNotFoundError(f"No existe la plantilla DOCX: {template_path}")
 
-    ensure_word_conversion_ready()
-
+    selected_engine = normalize_ats_pdf_engine(engine or get_ats_pdf_engine())
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="ats_word_build_") as tmp_dir:
+    build_prefix = "ats_word_build_" if selected_engine == "word" else "ats_libreoffice_build_"
+    with tempfile.TemporaryDirectory(prefix=build_prefix) as tmp_dir:
         tmp_docx = Path(tmp_dir) / "ats_render.docx"
         generate_docx_from_template(context, template_path, tmp_docx)
-        _convert_docx_to_pdf(tmp_docx, output_pdf_path)
+        if selected_engine == "word":
+            ensure_word_conversion_ready()
+            _convert_docx_to_pdf_word(tmp_docx, output_pdf_path)
+        elif selected_engine == "libreoffice":
+            _convert_docx_to_pdf_libreoffice(tmp_docx, output_pdf_path)
+        else:
+            raise RuntimeError("Motor PDF no soportado. Usa ATS_PDF_ENGINE=word|libreoffice.")
 
-    if not output_pdf_path.exists():
-        raise RuntimeError("No se genero archivo PDF desde plantilla Word.")
+    if not output_pdf_path.exists() or output_pdf_path.stat().st_size <= 0:
+        raise RuntimeError("No se genero archivo PDF desde plantilla DOCX.")
     return output_pdf_path
+
+
+def generate_pdf_bytes_from_template(
+    context: dict[str, Any],
+    template_path: Path,
+    *,
+    engine: str | None = None,
+) -> bytes:
+    with tempfile.TemporaryDirectory(prefix="ats_pdf_bytes_") as tmp_dir:
+        output_pdf_path = Path(tmp_dir) / "ats_render.pdf"
+        generate_pdf_from_template(
+            context=context,
+            template_path=template_path,
+            output_pdf_path=output_pdf_path,
+            engine=engine,
+        )
+        try:
+            payload = output_pdf_path.read_bytes()
+        except Exception as exc:
+            raise RuntimeError("Error leyendo PDF generado en memoria.") from exc
+
+    if len(payload) <= 0:
+        raise RuntimeError("El PDF generado en memoria esta vacio.")
+    return payload

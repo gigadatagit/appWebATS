@@ -7,30 +7,46 @@ from pathlib import Path
 from typing import TypedDict
 
 import reflex as rx
-from sqlmodel import select
 from sqlalchemy import text, delete
+from sqlmodel import select
 
+from ..access_control import (
+    AccessDeniedError,
+    assert_can_access_ats,
+    assert_can_edit_ats,
+    get_current_auth_context,
+    is_admin,
+    is_siso,
+    resolve_ats_id_by_codigo,
+    resolve_ats_id_by_uuid,
+)
 from ..models import (
-    Ats,
-    AtsEstado,
-    AtsTipo,
     ApoyoCatalogo,
-    CertificadoCatalogo,
-    PeligroCatalogo,
-    ControlCatalogo,
-    Trabajador,
-    FirmaTipoCatalogo,
+    AtsEstado,
+    Ats,
     AtsApoyo,
     AtsCertificado,
-    AtsPeligro,
+    AtsDocumento,
+    AtsFirmaFinal,
     AtsPaso,
     AtsPasoPeligro,
     AtsPasoPeligroControl,
+    AtsPeligro,
+    AtsTipo,
+    CertificadoCatalogo,
+    ControlCatalogo,
+    FirmaTipoCatalogo,
+    PeligroCatalogo,
+    Trabajador,
     AtsTrabajador,
-    AtsFirmaFinal,
-    AtsDocumento,
 )
-from ..docx_template_pdf import generate_pdf_from_template
+from ..config import get_ats_pdf_engine, get_supabase_signed_url_ttl_seconds
+from ..docx_template_pdf import generate_pdf_bytes_from_template
+from ..storage_supabase import (
+    create_signed_file_url,
+    delete_file_if_exists,
+    upload_pdf_bytes,
+)
 from .session_state import SessionState
 
 
@@ -48,6 +64,7 @@ class PasoPeligroItem(TypedDict):
     peligro_id: int
     peligro_numero: int
     peligro_nombre: str
+    descripcion_otro: str
     controls: list[PasoPeligroControlItem]
 
 
@@ -82,6 +99,12 @@ class FirmaFinalItem(TypedDict):
 
 
 class AtsFormState(rx.State):
+    ATS_ESTADO_BORRADOR: str = "BORRADOR"
+    ATS_ESTADO_EN_PROCESO: str = "EN_PROCESO"
+    ATS_ESTADO_FINALIZADO: str = "FINALIZADO"
+    ATS_ESTADO_DOCUMENTO_GENERADO: str = "DOCUMENTO_GENERADO"
+    PELIGRO_OTRO_CODIGO: str = "OTRO_PELIGRO"
+
     current_step: int = 1
 
     ats_id: int = 0
@@ -113,12 +136,16 @@ class AtsFormState(rx.State):
     apoyos_seleccionados: list[int] = []
     certificados_seleccionados: list[int] = []
     load_codigo_input: str = ""
+    documento_search_query: str = ""
     documento_selected_ats_id: int = 0
     documento_selected_codigo: str = ""
     documento_generado_url: str = ""
     documento_generado_nombre: str = ""
     documento_error: str = ""
     documento_success: str = ""
+    current_auth_user_id: str = ""
+    current_user_id: int = 0
+    current_user_role_codigo: str = ""
     pasos_actividad: list[PasoActividadItem] = []
     paso3_peligro_modal_open: bool = False
     paso3_peligro_modal_step_uid: str = ""
@@ -162,6 +189,10 @@ class AtsFormState(rx.State):
     @rx.var
     def control_otro_id(self) -> int:
         return self._otro_control_id()
+
+    @rx.var
+    def paso3_otro_peligro_id(self) -> int:
+        return self._otro_peligro_id()
 
     @rx.var
     def paso3_peligros_filtrados(self) -> list[dict]:
@@ -235,6 +266,140 @@ class AtsFormState(rx.State):
 
     form_error: str = ""
     form_success: str = ""
+
+    def _sync_auth_context(self, session_state: SessionState):
+        auth_context = get_current_auth_context(session_state)
+        self.current_auth_user_id = auth_context.auth_user_id
+        self.current_user_id = int(auth_context.current_user_id or 0)
+        self.current_user_role_codigo = str(auth_context.current_user_role_codigo or "")
+        return auth_context
+
+    def _require_authenticated_context(self) -> tuple[int, str]:
+        user_id = int(self.current_user_id or 0)
+        role_code = str(self.current_user_role_codigo or "").strip().upper()
+        auth_user_id = str(self.current_auth_user_id or "").strip()
+        if user_id <= 0 or not role_code or not auth_user_id:
+            raise AccessDeniedError("Sesion no valida. Inicia sesion nuevamente.")
+        return user_id, role_code
+
+    def _require_ats_role_context(self) -> tuple[int, str]:
+        user_id, role_code = self._require_authenticated_context()
+        if not (is_admin(role_code) or is_siso(role_code)):
+            raise AccessDeniedError("Tu rol actual no tiene permisos para operar ATS.")
+        return user_id, role_code
+
+    def _assert_ats_access(self, session, ats_id: int, for_edit: bool = False):
+        user_id, role_code = self._require_ats_role_context()
+        if for_edit:
+            assert_can_edit_ats(session, ats_id, user_id, role_code)
+            return
+        assert_can_access_ats(session, ats_id, user_id, role_code)
+
+    @staticmethod
+    def _parse_iso_date(value: str) -> date:
+        raw = str(value or "").strip()
+        if not raw:
+            return date.today()
+        try:
+            return date.fromisoformat(raw)
+        except Exception:
+            return date.today()
+
+    @staticmethod
+    def _ats_scope_condition_sql(alias: str, current_user_id: int, role_code: str) -> tuple[str, dict[str, int]]:
+        if is_admin(role_code):
+            return "1 = 1", {}
+        return f"{alias}.creado_por_usuario_id = :current_user_id", {"current_user_id": int(current_user_id or 0)}
+
+    @staticmethod
+    def _normalize_estado_codigo(value: str) -> str:
+        return str(value or "").strip().upper()
+
+    def _estado_priority(self, codigo: str) -> int:
+        normalized = self._normalize_estado_codigo(codigo)
+        if normalized == self.ATS_ESTADO_BORRADOR:
+            return 1
+        if normalized == self.ATS_ESTADO_EN_PROCESO:
+            return 2
+        if normalized == self.ATS_ESTADO_FINALIZADO:
+            return 3
+        if normalized == self.ATS_ESTADO_DOCUMENTO_GENERADO:
+            return 4
+        return 0
+
+    def _resolve_estado_id_by_codigo_with_session(self, session, codigo: str) -> int:
+        normalized = self._normalize_estado_codigo(codigo)
+        if not normalized:
+            raise RuntimeError("Codigo de estado ATS invalido.")
+        row = session.exec(select(AtsEstado).where(AtsEstado.codigo == normalized)).first()
+        estado_id = int(row.id or 0) if row else 0
+        if estado_id <= 0:
+            raise RuntimeError(f"No existe el estado {normalized} en la base.")
+        return estado_id
+
+    def _resolve_estado_codigo_by_id_with_session(self, session, estado_id: int) -> str:
+        target_id = int(estado_id or 0)
+        if target_id <= 0:
+            return ""
+        row = session.get(AtsEstado, target_id)
+        return self._normalize_estado_codigo(str(row.codigo or "")) if row else ""
+
+    def _mark_ats_dirty_after_document(self, current_estado_codigo: str, target_estado_codigo: str) -> str:
+        current_code = self._normalize_estado_codigo(current_estado_codigo)
+        target_code = self._normalize_estado_codigo(target_estado_codigo)
+        if current_code == self.ATS_ESTADO_DOCUMENTO_GENERADO and target_code != self.ATS_ESTADO_DOCUMENTO_GENERADO:
+            return self.ATS_ESTADO_EN_PROCESO
+        return target_code
+
+    def _resolve_effective_estado_transition(self, current_estado_codigo: str, target_estado_codigo: str) -> str:
+        current_code = self._normalize_estado_codigo(current_estado_codigo)
+        requested_target = self._normalize_estado_codigo(target_estado_codigo)
+        if not requested_target:
+            raise RuntimeError("Codigo de estado ATS invalido.")
+
+        # Regla de retrabajo: si ya tuvo documento generado y se edita cualquier seccion,
+        # el ATS vuelve a EN_PROCESO.
+        post_document_target = self._mark_ats_dirty_after_document(current_code, requested_target)
+        if post_document_target == self.ATS_ESTADO_EN_PROCESO and current_code == self.ATS_ESTADO_DOCUMENTO_GENERADO:
+            return post_document_target
+
+        current_priority = self._estado_priority(current_code)
+        target_priority = self._estado_priority(post_document_target)
+
+        # Regla de prioridad: no degradar progreso entre BORRADOR/EN_PROCESO/FINALIZADO.
+        if current_priority > target_priority:
+            return current_code
+        return post_document_target
+
+    def _set_ats_status_with_session(
+        self,
+        session,
+        ats_id: int,
+        target_estado_codigo: str,
+        user_id: int,
+        role_code: str,
+    ) -> str:
+        target_ats_id = int(ats_id or 0)
+        if target_ats_id <= 0:
+            raise RuntimeError("ATS invalido para actualizar estado.")
+
+        # Seguridad de ownership/rol aplicada de forma centralizada.
+        assert_can_edit_ats(session, target_ats_id, user_id, role_code)
+
+        ats = session.get(Ats, target_ats_id)
+        if ats is None:
+            raise RuntimeError("ATS no encontrado para actualizar estado.")
+
+        current_code = self._resolve_estado_codigo_by_id_with_session(session, int(ats.estado_id or 0))
+        desired_code = self._resolve_effective_estado_transition(current_code, target_estado_codigo)
+        desired_estado_id = self._resolve_estado_id_by_codigo_with_session(session, desired_code)
+
+        if int(ats.estado_id or 0) != int(desired_estado_id):
+            ats.estado_id = int(desired_estado_id)
+            ats.updated_at = datetime.utcnow()
+            session.add(ats)
+
+        return desired_code
 
     def set_step(self, step: int):
         self.current_step = step
@@ -382,6 +547,7 @@ class AtsFormState(rx.State):
             merged.append(
                 {
                     "id": peligro_id,
+                    "codigo": str(item.get("codigo") or ""),
                     "numero": item.get("numero"),
                     "nombre": item.get("nombre", ""),
                     "permite_descripcion_libre": allows_free_text,
@@ -406,8 +572,18 @@ class AtsFormState(rx.State):
         if not self.peligros_catalogo:
             return
 
-        with rx.session() as session:
-            self._load_peligros_selection_with_session(session, int(self.ats_id or 0))
+        ats_id = int(self.ats_id or 0)
+        if ats_id <= 0:
+            self._apply_peligros_selection({})
+            return
+
+        try:
+            with rx.session() as session:
+                self._assert_ats_access(session, ats_id, for_edit=False)
+                self._load_peligros_selection_with_session(session, ats_id)
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            self._apply_peligros_selection({})
 
     def set_peligro_checked(self, peligro_id: int, checked: bool):
         updated: list[dict] = []
@@ -430,6 +606,51 @@ class AtsFormState(rx.State):
                 current["descripcion_otro"] = value
             updated.append(current)
         self.peligros_catalogo = updated
+
+    def _peligro_otro_catalog_row(self) -> dict:
+        for item in self.peligros_catalogo:
+            if str(item.get("codigo") or "").strip().upper() == self.PELIGRO_OTRO_CODIGO:
+                return dict(item)
+        return {}
+
+    def _otro_peligro_id(self) -> int:
+        row = self._peligro_otro_catalog_row()
+        return int(row.get("id") or 0)
+
+    def _is_peligro_otro(self, peligro_id: int) -> bool:
+        if peligro_id <= 0:
+            return False
+        otro_id = self._otro_peligro_id()
+        if otro_id > 0 and int(peligro_id) == otro_id:
+            return True
+        for item in self.peligros_catalogo:
+            if int(item.get("id") or 0) != int(peligro_id):
+                continue
+            return str(item.get("codigo") or "").strip().upper() == self.PELIGRO_OTRO_CODIGO
+        return False
+
+    def set_paso3_descripcion_otro_peligro(self, paso_uid: str, peligro_uid: str, value: str):
+        updated_steps: list[PasoActividadItem] = []
+        for paso in self.pasos_actividad:
+            current_step = dict(paso)
+            if str(current_step.get("uid")) != str(paso_uid):
+                updated_steps.append(current_step)
+                continue
+
+            next_peligros: list[PasoPeligroItem] = []
+            for peligro in current_step.get("peligros", []):
+                current_peligro = dict(peligro)
+                if (
+                    str(current_peligro.get("uid")) == str(peligro_uid)
+                    and self._is_peligro_otro(int(current_peligro.get("peligro_id") or 0))
+                ):
+                    current_peligro["descripcion_otro"] = value
+                next_peligros.append(current_peligro)
+
+            current_step["peligros"] = next_peligros
+            updated_steps.append(current_step)
+
+        self.pasos_actividad = updated_steps
 
     def _control_catalog_map(self) -> dict[int, dict]:
         return {
@@ -553,6 +774,7 @@ class AtsFormState(rx.State):
                         "peligro_id": int(peligro_id),
                         "peligro_numero": int(peligro_row.get("numero") or 0),
                         "peligro_nombre": str(peligro_row.get("nombre") or ""),
+                        "descripcion_otro": "",
                         "controls": [self._build_empty_paso_peligro_control()],
                     }
                 )
@@ -711,6 +933,7 @@ class AtsFormState(rx.State):
                     ap.peligro_id,
                     pc.numero_visual,
                     pc.nombre AS peligro_nombre,
+                    app.descripcion_otro AS descripcion_otro,
                     appc.id AS ats_paso_peligro_control_id,
                     appc.control_id,
                     appc.control_aplicado,
@@ -746,6 +969,7 @@ class AtsFormState(rx.State):
                     "peligro_id": int(row.get("peligro_id") or 0),
                     "peligro_numero": int(row.get("numero_visual") or 0),
                     "peligro_nombre": str(row.get("peligro_nombre") or ""),
+                    "descripcion_otro": str(row.get("descripcion_otro") or ""),
                     "controls": [],
                 }
                 peligros_index[key] = peligro_item
@@ -785,8 +1009,17 @@ class AtsFormState(rx.State):
 
     def load_pasos_for_current_ats(self):
         ats_id = int(self.ats_id or 0)
-        with rx.session() as session:
-            self._load_pasos_for_current_ats_with_session(session, ats_id)
+        if ats_id <= 0:
+            self.pasos_actividad = []
+            return
+
+        try:
+            with rx.session() as session:
+                self._assert_ats_access(session, ats_id, for_edit=False)
+                self._load_pasos_for_current_ats_with_session(session, ats_id)
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            self.pasos_actividad = []
 
     def _build_trabajador_from_catalog_row(self, row: dict, numero_orden: int) -> TrabajadorActividadItem:
         return {
@@ -846,8 +1079,18 @@ class AtsFormState(rx.State):
         self._reindex_trabajadores()
 
     def load_trabajadores_for_current_ats(self):
-        with rx.session() as session:
-            self._load_trabajadores_for_current_ats_with_session(session, int(self.ats_id or 0))
+        ats_id = int(self.ats_id or 0)
+        if ats_id <= 0:
+            self.trabajadores_actividad = []
+            return
+
+        try:
+            with rx.session() as session:
+                self._assert_ats_access(session, ats_id, for_edit=False)
+                self._load_trabajadores_for_current_ats_with_session(session, ats_id)
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            self.trabajadores_actividad = []
 
     def open_trabajador_import_modal(self):
         self.trabajador_import_modal_open = True
@@ -963,7 +1206,7 @@ class AtsFormState(rx.State):
     def _load_firma_tipos_catalogo_with_session(self, session):
         rows = session.exec(
             select(FirmaTipoCatalogo)
-            .where(FirmaTipoCatalogo.activo == 1)
+            .where(FirmaTipoCatalogo.activo.is_(True))
             .order_by(FirmaTipoCatalogo.orden, FirmaTipoCatalogo.id)
         ).all()
         self.firma_tipos_catalogo = [
@@ -1027,8 +1270,20 @@ class AtsFormState(rx.State):
         self._rebuild_firmas_finales(saved_map)
 
     def load_firmas_finales_for_current_ats(self):
-        with rx.session() as session:
-            self._load_firmas_finales_for_current_ats_with_session(session, int(self.ats_id or 0))
+        ats_id = int(self.ats_id or 0)
+        if ats_id <= 0:
+            with rx.session() as session:
+                self._load_firma_tipos_catalogo_with_session(session)
+            self._rebuild_firmas_finales({})
+            return
+
+        try:
+            with rx.session() as session:
+                self._assert_ats_access(session, ats_id, for_edit=False)
+                self._load_firmas_finales_for_current_ats_with_session(session, ats_id)
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            self._rebuild_firmas_finales({})
 
     def set_firma_final_nombre(self, firma_uid: str, value: str):
         updated: list[FirmaFinalItem] = []
@@ -1098,16 +1353,117 @@ class AtsFormState(rx.State):
             return normalized
         return "/" + normalized
 
-    def _load_documentos_ats_options_with_session(self, session):
-        rows = session.execute(
+    @staticmethod
+    def _safe_document_code(value: str, fallback: str) -> str:
+        safe = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(value or "")).strip("_")
+        return safe if safe else fallback
+
+    @staticmethod
+    def _is_postgres_session(session) -> bool:
+        try:
+            bind = session.get_bind()
+            dialect_name = str(getattr(getattr(bind, "dialect", None), "name", "")).lower()
+            return "postgres" in dialect_name
+        except Exception:
+            return False
+
+    def _lock_ats_row_for_document_generation(self, session, ats_id: int):
+        if not self._is_postgres_session(session):
+            return
+        session.execute(
+            text("SELECT id FROM ats WHERE id = :ats_id FOR UPDATE"),
+            {"ats_id": int(ats_id)},
+        ).first()
+
+    @staticmethod
+    def _next_document_version_with_session(session, ats_id: int) -> int:
+        max_version = session.execute(
             text(
                 """
-                SELECT id, codigo_publico, empresa_persona_ejecuta, fecha_elaboracion
-                FROM ats
-                ORDER BY id DESC
-                LIMIT 300
+                SELECT COALESCE(MAX(version), 0) AS max_version
+                FROM ats_documento
+                WHERE ats_id = :ats_id AND tipo_documento = 'PDF'
+                """
+            ),
+            {"ats_id": int(ats_id)},
+        ).scalar_one()
+        return int(max_version or 0) + 1
+
+    def _build_storage_target_for_document(self, ats_id: int, codigo_publico: str, version: int) -> tuple[str, str]:
+        safe_code = self._safe_document_code(codigo_publico, fallback=f"ATS_{int(ats_id)}")
+        file_name = f"{safe_code}_v{int(version)}.pdf"
+        storage_path = f"{safe_code}/v{int(version)}/{file_name}"
+        return file_name, storage_path
+
+    def _is_legacy_local_document_path(self, file_path: str) -> bool:
+        normalized = str(file_path or "").replace("\\", "/").strip()
+        return normalized.startswith("assets/") or normalized.startswith("documentos/") or normalized.startswith("/documentos/")
+
+    @staticmethod
+    def _resolve_document_codigo_label(numero_ats: str, codigo_publico: str, ats_id: int) -> str:
+        numero_clean = str(numero_ats or "").strip()
+        codigo_clean = str(codigo_publico or "").strip()
+        if numero_clean and codigo_clean and numero_clean.lower() != codigo_clean.lower():
+            return f"{numero_clean} ({codigo_clean})"
+        if numero_clean:
+            return numero_clean
+        if codigo_clean:
+            return codigo_clean
+        return f"ATS-{int(ats_id)}"
+
+    def _resolve_document_file_url(self, storage_path: str, file_name: str) -> tuple[str, str]:
+        normalized = str(storage_path or "").replace("\\", "/").strip()
+        if normalized == "":
+            return "", ""
+        if self._is_legacy_local_document_path(normalized):
+            return self._asset_url_from_path(normalized), ""
+        try:
+            return (
+                create_signed_file_url(
+                    storage_path=normalized,
+                    expires_in_seconds=get_supabase_signed_url_ttl_seconds(),
+                    download_name=str(file_name or "").strip() or None,
+                ),
+                "",
+            )
+        except Exception as exc:
+            return "", f"No se pudo generar URL firmada para el historial de documentos: {exc}"
+
+    def _load_documentos_ats_options_with_session(self, session, search_query: str = ""):
+        user_id, role_code = self._require_ats_role_context()
+        scope_condition, scope_params = self._ats_scope_condition_sql(
+            alias="a",
+            current_user_id=user_id,
+            role_code=role_code,
+        )
+        query_value = str(search_query or "").strip().lower()
+        where_clauses: list[str] = [scope_condition]
+        params: dict[str, int | str] = dict(scope_params)
+        if len(query_value) >= 2:
+            params["search_term"] = f"%{query_value}%"
+            where_clauses.append(
+                """
+                (
+                    lower(CAST(a.fecha_elaboracion AS TEXT)) LIKE :search_term
+                    OR lower(COALESCE(a.numero_ats, '')) LIKE :search_term
+                    OR lower(COALESCE(a.codigo_publico, '')) LIKE :search_term
+                    OR lower(COALESCE(a.empresa_persona_ejecuta, '')) LIKE :search_term
+                )
                 """
             )
+
+        where_sql = " AND ".join(where_clauses)
+        rows = session.execute(
+            text(
+                f"""
+                SELECT a.id, a.codigo_publico, a.numero_ats, a.empresa_persona_ejecuta, a.fecha_elaboracion
+                FROM ats a
+                WHERE {where_sql}
+                ORDER BY a.id DESC
+                LIMIT 300
+                """
+            ),
+            params,
         ).mappings().all()
 
         self.documentos_ats_options = [
@@ -1115,7 +1471,11 @@ class AtsFormState(rx.State):
                 "id": int(row["id"]),
                 "id_str": str(int(row["id"])),
                 "codigo_publico": str(row["codigo_publico"] or ""),
-                "label": f"{row['codigo_publico']} | {row['empresa_persona_ejecuta']} | {row['fecha_elaboracion']}",
+                "numero_ats": str(row["numero_ats"] or ""),
+                "label": (
+                    f"{self._resolve_document_codigo_label(str(row['numero_ats'] or ''), str(row['codigo_publico'] or ''), int(row['id']))} "
+                    f"| {row['fecha_elaboracion']} | {str(row['empresa_persona_ejecuta'] or '')}"
+                ),
             }
             for row in rows
         ]
@@ -1135,10 +1495,16 @@ class AtsFormState(rx.State):
         self.documento_selected_codigo = str(selected["codigo_publico"]) if selected else ""
 
     def _load_documentos_generados_with_session(self, session, ats_id: int = 0):
-        params: dict[str, int] = {}
-        where_clause = ""
+        user_id, role_code = self._require_ats_role_context()
+        scope_condition, scope_params = self._ats_scope_condition_sql(
+            alias="a",
+            current_user_id=user_id,
+            role_code=role_code,
+        )
+        params: dict[str, int] = dict(scope_params)
+        where_clause = f"WHERE {scope_condition}"
         if ats_id > 0:
-            where_clause = "WHERE d.ats_id = :ats_id"
+            where_clause += " AND d.ats_id = :ats_id"
             params["ats_id"] = int(ats_id)
 
         rows = session.execute(
@@ -1164,39 +1530,119 @@ class AtsFormState(rx.State):
             params,
         ).mappings().all()
 
-        self.documentos_generados = [
-            {
-                "id": int(row["id"]),
-                "ats_id": int(row["ats_id"]),
-                "codigo_publico": str(row["codigo_publico"] or ""),
-                "tipo_documento": str(row["tipo_documento"] or ""),
-                "nombre_archivo": str(row["nombre_archivo"] or ""),
-                "ruta_archivo": str(row["ruta_archivo"] or ""),
-                "archivo_url": self._asset_url_from_path(str(row["ruta_archivo"] or "")),
-                "mime_type": str(row["mime_type"] or ""),
-                "version": int(row["version"] or 1),
-                "version_str": str(int(row["version"] or 1)),
-                "created_at": str(row["created_at"] or ""),
-            }
-            for row in rows
-        ]
+        resolved_rows: list[dict] = []
+        first_signed_url_error = ""
+        for row in rows:
+            file_name = str(row["nombre_archivo"] or "")
+            file_path = str(row["ruta_archivo"] or "")
+            file_url, url_error = self._resolve_document_file_url(file_path, file_name)
+            if url_error and first_signed_url_error == "":
+                first_signed_url_error = url_error
 
-    def set_documento_selected_ats_id_from_select(self, value: str):
-        clean = (value or "").strip()
-        self.documento_selected_ats_id = int(clean) if clean else 0
-        selected = next(
-            (
-                item
-                for item in self.documentos_ats_options
-                if int(item["id"]) == int(self.documento_selected_ats_id or 0)
-            ),
-            None,
-        )
-        self.documento_selected_codigo = str(selected["codigo_publico"]) if selected else ""
+            resolved_rows.append(
+                {
+                    "id": int(row["id"]),
+                    "ats_id": int(row["ats_id"]),
+                    "codigo_publico": str(row["codigo_publico"] or ""),
+                    "tipo_documento": str(row["tipo_documento"] or ""),
+                    "nombre_archivo": file_name,
+                    "ruta_archivo": file_path,
+                    "archivo_url": file_url,
+                    "mime_type": str(row["mime_type"] or ""),
+                    "version": int(row["version"] or 1),
+                    "version_str": str(int(row["version"] or 1)),
+                    "created_at": str(row["created_at"] or ""),
+                }
+            )
+
+        self.documentos_generados = resolved_rows
+        if first_signed_url_error and self.documento_error == "":
+            self.documento_error = first_signed_url_error
+
+    async def set_documento_search_query(self, value: str):
+        self.documento_error = ""
+        self.documento_search_query = str(value or "")
+
+        session_state = await self.get_state(SessionState)
+        if not session_state.is_authenticated:
+            return rx.redirect("/login")
+
+        self._sync_auth_context(session_state)
+        try:
+            self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.documento_error = str(exc)
+            self.documentos_ats_options = []
+            self.documentos_generados = []
+            self.documento_selected_ats_id = 0
+            self.documento_selected_codigo = ""
+            return
+
         with rx.session() as session:
+            self._load_documentos_ats_options_with_session(session, self.documento_search_query)
+            self._load_documentos_generados_with_session(session, int(self.documento_selected_ats_id or 0))
+
+    async def set_documento_selected_ats_id_from_select(self, value: str):
+        clean = (value or "").strip()
+        target_id = int(clean) if clean else 0
+
+        session_state = await self.get_state(SessionState)
+        if not session_state.is_authenticated:
+            return rx.redirect("/login")
+
+        self._sync_auth_context(session_state)
+        try:
+            user_id, role_code = self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.documento_error = str(exc)
+            self.documento_selected_ats_id = 0
+            self.documento_selected_codigo = ""
+            self.documentos_generados = []
+            return
+
+        with rx.session() as session:
+            if target_id > 0:
+                try:
+                    assert_can_access_ats(session, target_id, user_id, role_code)
+                except AccessDeniedError as exc:
+                    self.documento_error = str(exc)
+                    self.documento_selected_ats_id = 0
+                    self.documento_selected_codigo = ""
+                    self.documentos_generados = []
+                    return
+
+            self.documento_error = ""
+            self.documento_selected_ats_id = target_id
+            selected = next(
+                (
+                    item
+                    for item in self.documentos_ats_options
+                    if int(item["id"]) == int(self.documento_selected_ats_id or 0)
+                ),
+                None,
+            )
+            if selected:
+                self.documento_selected_codigo = str(selected["codigo_publico"] or "")
+            elif target_id > 0:
+                codigo = session.execute(
+                    text(
+                        """
+                        SELECT codigo_publico
+                        FROM ats
+                        WHERE id = :ats_id
+                        """
+                    ),
+                    {"ats_id": int(target_id)},
+                ).scalar_one_or_none()
+                self.documento_selected_codigo = str(codigo or "")
+            else:
+                self.documento_selected_codigo = ""
+
             self._load_documentos_generados_with_session(session, int(self.documento_selected_ats_id or 0))
 
     def _build_document_context_with_session(self, session, ats_id: int) -> dict:
+        self._assert_ats_access(session, ats_id, for_edit=False)
+
         ats_row = session.execute(
             text(
                 """
@@ -1273,6 +1719,7 @@ class AtsFormState(rx.State):
                     app.id AS ats_paso_peligro_id,
                     pc.numero_visual AS peligro_numero,
                     pc.nombre AS peligro_nombre,
+                    app.descripcion_otro AS peligro_descripcion_otro,
                     appc.control_aplicado
                 FROM ats_paso p
                 LEFT JOIN ats_paso_peligro app ON app.ats_paso_id = p.id
@@ -1325,6 +1772,7 @@ class AtsFormState(rx.State):
                     peligro_item = {
                         "peligro_numero": int(peligro_numero),
                         "peligro_nombre": peligro_nombre,
+                        "descripcion_otro": str(row.get("peligro_descripcion_otro") or "").strip(),
                         "controles": [],
                     }
                     paso["_peligros_map"][peligro_key] = peligro_item
@@ -1344,7 +1792,14 @@ class AtsFormState(rx.State):
                 list(
                     dict.fromkeys(
                         [
-                            f"P{int(item.get('peligro_numero') or 0)} - {str(item.get('peligro_nombre') or '')}"
+                            (
+                                f"P{int(item.get('peligro_numero') or 0)} - {str(item.get('peligro_nombre') or '')}"
+                                + (
+                                    f" (Detalle: {str(item.get('descripcion_otro') or '').strip()})"
+                                    if str(item.get("descripcion_otro") or "").strip() != ""
+                                    else ""
+                                )
+                            )
                             for item in paso["peligros"]
                             if int(item.get("peligro_numero") or 0) > 0 and str(item.get("peligro_nombre") or "").strip() != ""
                         ]
@@ -1371,6 +1826,7 @@ class AtsFormState(rx.State):
                         {
                             "peligro_numero": int(item.get("peligro_numero") or 0),
                             "peligro_nombre": str(item.get("peligro_nombre") or ""),
+                            "descripcion_otro": str(item.get("descripcion_otro") or ""),
                             "controles": [str(control or "") for control in item.get("controles", [])],
                         }
                         for item in paso["peligros"]
@@ -1392,7 +1848,7 @@ class AtsFormState(rx.State):
                 FROM firma_tipo_catalogo ft
                 LEFT JOIN ats_firma_final aff
                     ON aff.firma_tipo_id = ft.id AND aff.ats_id = :ats_id
-                WHERE ft.activo = 1
+                WHERE ft.activo IS TRUE
                 ORDER BY ft.orden, ft.id
                 """
             ),
@@ -1463,25 +1919,43 @@ class AtsFormState(rx.State):
     async def load_documentos_page_data(self):
         self.documento_error = ""
         self.documento_success = ""
+        self.documento_search_query = ""
 
         session_state = await self.get_state(SessionState)
         if not session_state.is_authenticated:
             return rx.redirect("/login")
 
+        self._sync_auth_context(session_state)
+        try:
+            user_id, role_code = self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.documento_error = str(exc)
+            self.documentos_ats_options = []
+            self.documentos_generados = []
+            self.ats_recientes = []
+            return
+
         with rx.session() as session:
+            scope_condition, scope_params = self._ats_scope_condition_sql(
+                alias="a",
+                current_user_id=user_id,
+                role_code=role_code,
+            )
             rows = session.execute(
                 text(
-                    """
+                    f"""
                     SELECT a.id, a.codigo_publico, e.nombre AS estado, a.empresa_persona_ejecuta, a.fecha_elaboracion
                     FROM ats a
                     JOIN ats_estado e ON e.id = a.estado_id
+                    WHERE {scope_condition}
                     ORDER BY a.id DESC
                     LIMIT 50
                     """
-                )
+                ),
+                scope_params,
             ).mappings().all()
             self.ats_recientes = [dict(row) for row in rows]
-            self._load_documentos_ats_options_with_session(session)
+            self._load_documentos_ats_options_with_session(session, self.documento_search_query)
             self._load_documentos_generados_with_session(session, int(self.documento_selected_ats_id or 0))
 
     async def generar_documento_pdf(self):
@@ -1492,84 +1966,166 @@ class AtsFormState(rx.State):
         if not session_state.is_authenticated:
             return rx.redirect("/login")
 
+        self._sync_auth_context(session_state)
+        try:
+            user_id, role_code = self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.documento_error = str(exc)
+            return
+
         ats_id = int(self.documento_selected_ats_id or 0)
         if ats_id <= 0:
             self.documento_error = "Selecciona un ATS para generar el PDF."
             return
 
+        template_path = Path.cwd() / "assets" / "templates" / "ats_template.docx"
+        if not template_path.exists():
+            self.documento_error = (
+                "No existe la plantilla Word requerida en assets/templates/ats_template.docx."
+            )
+            return
+
+        try:
+            pdf_engine = get_ats_pdf_engine()
+        except RuntimeError as exc:
+            self.documento_error = str(exc)
+            return
+
         with rx.session() as session:
-            context = self._build_document_context_with_session(session, ats_id)
+            try:
+                assert_can_access_ats(session, ats_id, user_id, role_code)
+                context = self._build_document_context_with_session(session, ats_id)
+            except AccessDeniedError as exc:
+                self.documento_error = str(exc)
+                return
+
             validation_errors = self._validate_document_context(context)
             if validation_errors:
                 self.documento_error = "No se puede generar el PDF: " + " ".join(validation_errors)
                 return
 
-            max_version = session.execute(
-                text(
-                    """
-                    SELECT COALESCE(MAX(version), 0) AS max_version
-                    FROM ats_documento
-                    WHERE ats_id = :ats_id AND tipo_documento = 'PDF'
-                    """
-                ),
-                {"ats_id": ats_id},
-            ).scalar_one()
-            next_version = int(max_version or 0) + 1
-
-            code = str(context.get("ats", {}).get("codigo_publico") or f"ATS_{ats_id}")
-            safe_code = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in code).strip("_")
-            if safe_code == "":
-                safe_code = f"ATS_{ats_id}"
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            file_name = f"{safe_code}_v{next_version}_{timestamp}.pdf"
-            relative_path = Path("assets") / "documentos" / file_name
-            absolute_path = Path.cwd() / relative_path
-            template_path = Path.cwd() / "assets" / "templates" / "ats_template.docx"
-            if not template_path.exists():
+            try:
+                pdf_bytes = generate_pdf_bytes_from_template(
+                    context=context,
+                    template_path=template_path,
+                    engine=pdf_engine,
+                )
+            except Exception as exc:
                 self.documento_error = (
-                    "No existe la plantilla Word requerida en assets/templates/ats_template.docx."
+                    "Error al generar el PDF desde plantilla DOCX: "
+                    f"{exc}"
                 )
                 return
 
+            uploaded_storage_path = ""
             try:
-                generate_pdf_from_template(context, template_path, absolute_path)
+                self._lock_ats_row_for_document_generation(session, ats_id)
+                next_version = self._next_document_version_with_session(session, ats_id)
             except Exception as exc:
-                self.documento_error = (
-                    "Error al generar el PDF desde plantilla Word: "
-                    f"{exc}"
-                )
+                session.rollback()
+                self.documento_error = f"Error calculando version del documento: {exc}"
+                return
+
+            code = str(context.get("ats", {}).get("codigo_publico") or f"ATS_{ats_id}")
+            file_name, storage_path = self._build_storage_target_for_document(
+                ats_id=ats_id,
+                codigo_publico=code,
+                version=next_version,
+            )
+
+            try:
+                upload_pdf_bytes(storage_path=storage_path, pdf_bytes=pdf_bytes)
+                uploaded_storage_path = storage_path
+            except Exception as exc:
+                session.rollback()
+                self.documento_error = f"Error subiendo PDF a Storage: {exc}"
                 return
 
             row = AtsDocumento(
                 ats_id=ats_id,
                 tipo_documento="PDF",
                 nombre_archivo=file_name,
-                ruta_archivo=str(relative_path).replace("\\", "/"),
+                ruta_archivo=storage_path,
                 mime_type="application/pdf",
                 version=next_version,
-                generado_por_usuario_id=int(session_state.user_id or 0) or None,
-                created_at=str(date.today()),
+                generado_por_usuario_id=int(user_id or 0) or None,
+                created_at=datetime.utcnow(),
             )
             session.add(row)
-            session.commit()
+            try:
+                self._set_ats_status_with_session(
+                    session=session,
+                    ats_id=ats_id,
+                    target_estado_codigo=self.ATS_ESTADO_DOCUMENTO_GENERADO,
+                    user_id=user_id,
+                    role_code=role_code,
+                )
+                session.commit()
+            except (AccessDeniedError, RuntimeError) as exc:
+                self.documento_error = str(exc)
+                session.rollback()
+                if uploaded_storage_path:
+                    delete_file_if_exists(uploaded_storage_path)
+                return
+            except Exception as exc:
+                self.documento_error = f"Error guardando registro de documento ATS: {exc}"
+                session.rollback()
+                if uploaded_storage_path:
+                    delete_file_if_exists(uploaded_storage_path)
+                return
 
             self.documento_generado_nombre = file_name
-            self.documento_generado_url = self._asset_url_from_path(str(relative_path))
-            self.documento_success = f"Documento generado correctamente (plantilla Word): {file_name}"
-            self._load_documentos_generados_with_session(session, ats_id)
+            self.documento_generado_url = ""
+            try:
+                self.documento_generado_url = create_signed_file_url(
+                    storage_path=storage_path,
+                    expires_in_seconds=get_supabase_signed_url_ttl_seconds(),
+                    download_name=file_name,
+                )
+            except Exception as exc:
+                self.documento_error = f"Documento generado, pero fallo la URL firmada: {exc}"
 
-    def load_ats_by_codigo(self, codigo: str):
+            self.documento_success = (
+                f"Documento generado correctamente (v{next_version}, motor {pdf_engine}): {file_name}"
+            )
+            self._load_documentos_generados_with_session(session, ats_id)
+            return rx.download(
+                data=pdf_bytes,
+                filename=file_name,
+                mime_type="application/pdf",
+            )
+
+    async def load_ats_by_codigo(self, codigo: str):
         self.form_error = ""
         self.form_success = ""
+
+        session_state = await self.get_state(SessionState)
+        if not session_state.is_authenticated:
+            return rx.redirect("/login")
+
+        self._sync_auth_context(session_state)
+        try:
+            user_id, role_code = self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            return
+
+        codigo_raw = str(codigo or "").strip()
+        if codigo_raw == "":
+            self.form_error = "Ingresa un codigo ATS para cargar."
+            return
+
         with rx.session() as session:
-            ats = session.exec(select(Ats).where(Ats.codigo_publico == codigo)).first()
+            ats_id = resolve_ats_id_by_codigo(session, codigo_raw, user_id, role_code)
+            if ats_id <= 0:
+                ats_id = resolve_ats_id_by_uuid(session, codigo_raw, user_id, role_code)
+            ats = session.get(Ats, ats_id) if ats_id > 0 else None
             if ats:
                 self.ats_id = int(ats.id or 0)
                 self.ats_uuid = ats.uuid
                 self.codigo_publico = ats.codigo_publico
                 self.empresa_persona_ejecuta = ats.empresa_persona_ejecuta
-                self.fecha_elaboracion = ats.fecha_elaboracion
+                self.fecha_elaboracion = str(ats.fecha_elaboracion or "")
                 self.ciudad = ats.ciudad
                 self.area_lugar = ats.area_lugar
                 self.numero_ats = ats.numero_ats or ""
@@ -1586,7 +2142,7 @@ class AtsFormState(rx.State):
                 self._load_trabajadores_for_current_ats_with_session(session, int(ats.id or 0))
                 self._load_firmas_finales_for_current_ats_with_session(session, int(ats.id or 0))
 
-                self.form_success = f"ATS {codigo} cargado para edición"
+                self.form_success = f"ATS {self.codigo_publico} cargado para edicion."
             else:
                 self._apply_apoyos_selection({})
                 self._apply_certificados_selection({})
@@ -1594,30 +2150,38 @@ class AtsFormState(rx.State):
                 self.pasos_actividad = []
                 self.trabajadores_actividad = []
                 self._rebuild_firmas_finales({})
-                self.form_error = f"ATS {codigo} no encontrado"
+                self.form_error = "No se encontro un ATS accesible con ese codigo."
 
     async def load_initial_data(self):
         session_state = await self.get_state(SessionState)
         if not session_state.is_authenticated:
             return rx.redirect("/login")
 
+        self._sync_auth_context(session_state)
+        try:
+            user_id, role_code = self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            self.ats_recientes = []
+            return
+
         with rx.session() as session:
-            tipos = session.exec(select(AtsTipo).where(AtsTipo.activo == 1)).all()
-            apoyos = session.exec(select(ApoyoCatalogo).where(ApoyoCatalogo.activo == 1)).all()
+            tipos = session.exec(select(AtsTipo).where(AtsTipo.activo.is_(True))).all()
+            apoyos = session.exec(select(ApoyoCatalogo).where(ApoyoCatalogo.activo.is_(True))).all()
             certificados = session.exec(
-                select(CertificadoCatalogo).where(CertificadoCatalogo.activo == 1)
+                select(CertificadoCatalogo).where(CertificadoCatalogo.activo.is_(True))
             ).all()
             peligros = session.exec(
-                select(PeligroCatalogo).where(PeligroCatalogo.activo == 1).order_by(PeligroCatalogo.orden)
+                select(PeligroCatalogo).where(PeligroCatalogo.activo.is_(True)).order_by(PeligroCatalogo.orden)
             ).all()
             controles = session.exec(
-                select(ControlCatalogo).where(ControlCatalogo.activo == 1).order_by(ControlCatalogo.id)
+                select(ControlCatalogo).where(ControlCatalogo.activo.is_(True)).order_by(ControlCatalogo.id)
             ).all()
             trabajadores = session.exec(
-                select(Trabajador).where(Trabajador.activo == 1).order_by(Trabajador.nombre_completo, Trabajador.id)
+                select(Trabajador).where(Trabajador.activo.is_(True)).order_by(Trabajador.nombre_completo, Trabajador.id)
             ).all()
             firma_tipos = session.exec(
-                select(FirmaTipoCatalogo).where(FirmaTipoCatalogo.activo == 1).order_by(FirmaTipoCatalogo.orden)
+                select(FirmaTipoCatalogo).where(FirmaTipoCatalogo.activo.is_(True)).order_by(FirmaTipoCatalogo.orden)
             ).all()
 
             self.tipos_ats = [
@@ -1649,6 +2213,7 @@ class AtsFormState(rx.State):
             self.peligros_catalogo = [
                 {
                     "id": int(item.id or 0),
+                    "codigo": str(item.codigo or ""),
                     "numero": item.numero_visual,
                     "nombre": item.nombre,
                     "permite_descripcion_libre": bool(item.permite_descripcion_libre),
@@ -1682,24 +2247,46 @@ class AtsFormState(rx.State):
                 for item in firma_tipos
             ]
 
+            scope_condition, scope_params = self._ats_scope_condition_sql(
+                alias="a",
+                current_user_id=user_id,
+                role_code=role_code,
+            )
             rows = session.execute(
                 text(
-                    """
+                    f"""
                     SELECT a.id, a.codigo_publico, e.nombre AS estado, a.empresa_persona_ejecuta, a.fecha_elaboracion
                     FROM ats a
                     JOIN ats_estado e ON e.id = a.estado_id
+                    WHERE {scope_condition}
                     ORDER BY a.id DESC
                     LIMIT 10
                     """
-                )
+                ),
+                scope_params,
             ).mappings().all()
             self.ats_recientes = [dict(row) for row in rows]
-            self._load_apoyos_selection_with_session(session, int(self.ats_id or 0))
-            self._load_certificados_selection_with_session(session, int(self.ats_id or 0))
-            self._load_peligros_selection_with_session(session, int(self.ats_id or 0))
-            self._load_pasos_for_current_ats_with_session(session, int(self.ats_id or 0))
-            self._load_trabajadores_for_current_ats_with_session(session, int(self.ats_id or 0))
-            self._load_firmas_finales_for_current_ats_with_session(session, int(self.ats_id or 0))
+
+            current_ats_id = int(self.ats_id or 0)
+            if current_ats_id > 0:
+                try:
+                    assert_can_access_ats(session, current_ats_id, user_id, role_code)
+                    self._load_apoyos_selection_with_session(session, current_ats_id)
+                    self._load_certificados_selection_with_session(session, current_ats_id)
+                    self._load_peligros_selection_with_session(session, current_ats_id)
+                    self._load_pasos_for_current_ats_with_session(session, current_ats_id)
+                    self._load_trabajadores_for_current_ats_with_session(session, current_ats_id)
+                    self._load_firmas_finales_for_current_ats_with_session(session, current_ats_id)
+                except AccessDeniedError:
+                    self.ats_id = 0
+                    self.ats_uuid = ""
+                    self.codigo_publico = ""
+                    self._apply_apoyos_selection({})
+                    self._apply_certificados_selection({})
+                    self._apply_peligros_selection({})
+                    self.pasos_actividad = []
+                    self.trabajadores_actividad = []
+                    self._rebuild_firmas_finales({})
 
     async def save_identificacion_general(self):
         self.form_error = ""
@@ -1708,6 +2295,13 @@ class AtsFormState(rx.State):
         session_state = await self.get_state(SessionState)
         if not session_state.is_authenticated:
             return rx.redirect("/login")
+
+        self._sync_auth_context(session_state)
+        try:
+            user_id, role_code = self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            return
 
         required = [
             self.empresa_persona_ejecuta,
@@ -1722,15 +2316,17 @@ class AtsFormState(rx.State):
             return
 
         is_edit_mode = self.ats_id > 0
-        today = str(date.today())
+        now_ts = datetime.utcnow()
+        estado_aplicado = self.ATS_ESTADO_BORRADOR
 
         with rx.session() as session:
-            estado_borrador = session.exec(
-                select(AtsEstado).where(AtsEstado.codigo == "BORRADOR")
-            ).first()
-
-            if estado_borrador is None:
-                self.form_error = "No existe el estado BORRADOR en la base."
+            try:
+                estado_borrador_id = self._resolve_estado_id_by_codigo_with_session(
+                    session,
+                    self.ATS_ESTADO_BORRADOR,
+                )
+            except RuntimeError as exc:
+                self.form_error = str(exc)
                 return
 
             tipo_ats_id = self.tipo_ats_id
@@ -1745,16 +2341,21 @@ class AtsFormState(rx.State):
                 # Editar ATS existente
                 ats = session.get(Ats, self.ats_id)
                 if not ats:
-                    self.form_error = "ATS no encontrado para edición."
+                    self.form_error = "ATS no encontrado para edicion."
+                    return
+                try:
+                    assert_can_edit_ats(session, int(self.ats_id or 0), user_id, role_code)
+                except AccessDeniedError as exc:
+                    self.form_error = str(exc)
                     return
                 ats.empresa_persona_ejecuta = self.empresa_persona_ejecuta.strip()
-                ats.fecha_elaboracion = self.fecha_elaboracion
+                ats.fecha_elaboracion = self._parse_iso_date(self.fecha_elaboracion)
                 ats.ciudad = self.ciudad.strip()
                 ats.area_lugar = self.area_lugar.strip()
                 ats.numero_ats = self.numero_ats.strip() or None
                 ats.tipo_ats_id = tipo_ats_id
                 ats.duracion_actividad = self.duracion_actividad.strip()
-                ats.actividad_alto_riesgo = 1 if self.actividad_alto_riesgo else 0
+                ats.actividad_alto_riesgo = bool(self.actividad_alto_riesgo)
                 ats.descripcion_actividad = self.descripcion_actividad.strip()
                 ats.observaciones = self.observaciones.strip() or None
 
@@ -1769,20 +2370,20 @@ class AtsFormState(rx.State):
                 ats = Ats(
                     uuid=ats_uuid,
                     codigo_publico=codigo_publico,
-                    estado_id=int(estado_borrador.id or 0),
+                    estado_id=int(estado_borrador_id),
                     tipo_ats_id=int(tipo_ats_id),
-                    creado_por_usuario_id=session_state.user_id,
+                    creado_por_usuario_id=user_id,
                     empresa_persona_ejecuta=self.empresa_persona_ejecuta.strip(),
-                    fecha_elaboracion=self.fecha_elaboracion,
+                    fecha_elaboracion=self._parse_iso_date(self.fecha_elaboracion),
                     ciudad=self.ciudad.strip(),
                     area_lugar=self.area_lugar.strip(),
                     numero_ats=self.numero_ats.strip() or None,
                     duracion_actividad=self.duracion_actividad.strip(),
-                    actividad_alto_riesgo=1 if self.actividad_alto_riesgo else 0,
+                    actividad_alto_riesgo=bool(self.actividad_alto_riesgo),
                     descripcion_actividad=self.descripcion_actividad.strip(),
                     observaciones=self.observaciones.strip() or None,
-                    created_at=today,
-                    updated_at=today,
+                    created_at=now_ts,
+                    updated_at=now_ts,
                 )
                 session.add(ats)
                 session.flush()
@@ -1812,7 +2413,7 @@ class AtsFormState(rx.State):
                         ats_id=ats_id,
                         apoyo_id=apoyo_id,
                         descripcion_otro=descripcion_otro or None,
-                        created_at=today,
+                        created_at=now_ts,
                     )
                 )
 
@@ -1824,9 +2425,22 @@ class AtsFormState(rx.State):
                         ats_id=ats_id,
                         certificado_id=certificado_id,
                         descripcion_otro=descripcion_otro or None,
-                        created_at=today,
+                        created_at=now_ts,
                     )
                 )
+
+            try:
+                estado_aplicado = self._set_ats_status_with_session(
+                    session=session,
+                    ats_id=ats_id,
+                    target_estado_codigo=self.ATS_ESTADO_BORRADOR,
+                    user_id=user_id,
+                    role_code=role_code,
+                )
+            except (AccessDeniedError, RuntimeError) as exc:
+                self.form_error = str(exc)
+                session.rollback()
+                return
 
             session.commit()
             session.refresh(ats)
@@ -1835,7 +2449,10 @@ class AtsFormState(rx.State):
             self.ats_uuid = ats.uuid
             self.codigo_publico = ats.codigo_publico
             action = "actualizado" if is_edit_mode else "guardado"
-            self.form_success = f"ATS {action} como borrador: {self.codigo_publico}"
+            self.form_success = (
+                f"ATS {action}: {self.codigo_publico} "
+                f"(estado: {estado_aplicado})"
+            )
 
         await self.load_initial_data()
         self.load_peligros_for_current_ats()
@@ -1849,12 +2466,25 @@ class AtsFormState(rx.State):
         if not session_state.is_authenticated:
             return rx.redirect("/login")
 
+        self._sync_auth_context(session_state)
+        try:
+            user_id, role_code = self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            return
+
         ats_id = int(self.ats_id or 0)
         if ats_id <= 0:
             self.form_error = "Primero guarda la identificación general del ATS."
             return
 
         with rx.session() as session:
+            try:
+                assert_can_edit_ats(session, ats_id, user_id, role_code)
+            except AccessDeniedError as exc:
+                self.form_error = str(exc)
+                return
+
             ats = session.get(Ats, ats_id)
             if not ats:
                 self.form_error = "ATS no encontrado para guardar peligros."
@@ -1863,7 +2493,7 @@ class AtsFormState(rx.State):
             session.exec(delete(AtsPeligro).where(AtsPeligro.ats_id == ats_id))
 
             seen: set[int] = set()
-            today = str(date.today())
+            now_ts = datetime.utcnow()
             for item in self.peligros_catalogo:
                 if not bool(item.get("seleccionado")):
                     continue
@@ -1881,9 +2511,22 @@ class AtsFormState(rx.State):
                         ats_id=ats_id,
                         peligro_id=peligro_id,
                         descripcion_otro=descripcion_otro or None,
-                        created_at=today,
+                        created_at=now_ts,
                     )
                 )
+
+            try:
+                self._set_ats_status_with_session(
+                    session=session,
+                    ats_id=ats_id,
+                    target_estado_codigo=self.ATS_ESTADO_EN_PROCESO,
+                    user_id=user_id,
+                    role_code=role_code,
+                )
+            except (AccessDeniedError, RuntimeError) as exc:
+                self.form_error = str(exc)
+                session.rollback()
+                return
 
             session.commit()
             self.form_success = "Peligros y riesgos guardados correctamente."
@@ -1905,6 +2548,13 @@ class AtsFormState(rx.State):
         if not session_state.is_authenticated:
             return rx.redirect("/login")
 
+        self._sync_auth_context(session_state)
+        try:
+            user_id, role_code = self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            return
+
         ats_id = int(self.ats_id or 0)
         if ats_id <= 0:
             self.form_error = "Primero guarda la identificacion general del ATS."
@@ -1916,13 +2566,19 @@ class AtsFormState(rx.State):
             return
 
         with rx.session() as session:
+            try:
+                assert_can_edit_ats(session, ats_id, user_id, role_code)
+            except AccessDeniedError as exc:
+                self.form_error = str(exc)
+                return
+
             ats = session.get(Ats, ats_id)
             if not ats:
                 self.form_error = "ATS no encontrado para guardar pasos."
                 return
 
             control_rows = session.exec(
-                select(ControlCatalogo).where(ControlCatalogo.activo == 1)
+                select(ControlCatalogo).where(ControlCatalogo.activo.is_(True))
             ).all()
             control_map = {int(item.id or 0): item for item in control_rows if int(item.id or 0) > 0}
             if not control_map:
@@ -1959,6 +2615,14 @@ class AtsFormState(rx.State):
                         self.form_error = f"El paso {idx} tiene peligros duplicados."
                         return
                     seen_in_step.add(peligro_id)
+
+                    descripcion_otro = str(peligro.get("descripcion_otro") or "").strip()
+                    if self._is_peligro_otro(peligro_id):
+                        if not descripcion_otro:
+                            self.form_error = f"Cuando uses OTRO_PELIGRO, debes escribir la descripcion en el paso {idx}."
+                            return
+                    else:
+                        descripcion_otro = ""
 
                     controls = [dict(item) for item in peligro.get("controls", [])]
                     if not controls:
@@ -2004,6 +2668,7 @@ class AtsFormState(rx.State):
                     cleaned_peligros.append(
                         {
                             "peligro_id": peligro_id,
+                            "descripcion_otro": descripcion_otro,
                             "controls": cleaned_controls,
                         }
                     )
@@ -2021,7 +2686,7 @@ class AtsFormState(rx.State):
                 self.form_error = "No hay peligros asociados en los pasos."
                 return
 
-            today = str(date.today())
+            now_ts = datetime.utcnow()
             current_ats_peligros = session.exec(
                 select(AtsPeligro).where(AtsPeligro.ats_id == ats_id)
             ).all()
@@ -2038,7 +2703,7 @@ class AtsFormState(rx.State):
                     ats_id=ats_id,
                     peligro_id=peligro_id,
                     descripcion_otro=None,
-                    created_at=today,
+                    created_at=now_ts,
                 )
                 session.add(new_row)
                 session.flush()
@@ -2076,8 +2741,8 @@ class AtsFormState(rx.State):
                     ats_id=ats_id,
                     numero_paso=int(paso["numero_paso"]),
                     descripcion_paso=str(paso["descripcion_paso"]),
-                    created_at=today,
-                    updated_at=today,
+                    created_at=now_ts,
+                    updated_at=now_ts,
                 )
                 session.add(row)
                 session.flush()
@@ -2098,6 +2763,7 @@ class AtsFormState(rx.State):
                     paso_peligro_row = AtsPasoPeligro(
                         ats_paso_id=paso_id,
                         ats_peligro_id=ats_peligro_id,
+                        descripcion_otro=str(peligro.get("descripcion_otro") or "").strip() or None,
                     )
                     session.add(paso_peligro_row)
                     session.flush()
@@ -2114,10 +2780,23 @@ class AtsFormState(rx.State):
                                 ats_paso_peligro_id=paso_peligro_id,
                                 control_id=int(control["control_id"]),
                                 control_aplicado=str(control["control_aplicado"]),
-                                created_at=today,
-                                updated_at=today,
+                                created_at=now_ts,
+                                updated_at=now_ts,
                             )
                         )
+
+            try:
+                self._set_ats_status_with_session(
+                    session=session,
+                    ats_id=ats_id,
+                    target_estado_codigo=self.ATS_ESTADO_EN_PROCESO,
+                    user_id=user_id,
+                    role_code=role_code,
+                )
+            except (AccessDeniedError, RuntimeError) as exc:
+                self.form_error = str(exc)
+                session.rollback()
+                return
 
             session.commit()
             self.form_success = "Paso a paso guardado correctamente."
@@ -2137,6 +2816,13 @@ class AtsFormState(rx.State):
         session_state = await self.get_state(SessionState)
         if not session_state.is_authenticated:
             return rx.redirect("/login")
+
+        self._sync_auth_context(session_state)
+        try:
+            user_id, role_code = self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            return
 
         ats_id = int(self.ats_id or 0)
         if ats_id <= 0:
@@ -2178,6 +2864,12 @@ class AtsFormState(rx.State):
             trabajador["firma_base64"] = firma
 
         with rx.session() as session:
+            try:
+                assert_can_edit_ats(session, ats_id, user_id, role_code)
+            except AccessDeniedError as exc:
+                self.form_error = str(exc)
+                return
+
             ats = session.get(Ats, ats_id)
             if not ats:
                 self.form_error = "ATS no encontrado para guardar trabajadores."
@@ -2185,7 +2877,7 @@ class AtsFormState(rx.State):
 
             valid_worker_ids = {
                 int(row.id or 0)
-                for row in session.exec(select(Trabajador).where(Trabajador.activo == 1)).all()
+                for row in session.exec(select(Trabajador).where(Trabajador.activo.is_(True))).all()
                 if int(row.id or 0) > 0
             }
             invalid_rows = [
@@ -2212,10 +2904,23 @@ class AtsFormState(rx.State):
                         documento_snapshot=str(trabajador["numero_documento"]),
                         cargo_snapshot=str(trabajador["cargo_trabajador"]) or None,
                         firma_base64=str(trabajador["firma_base64"]),
-                        created_at=str(date.today()),
-                        updated_at=str(date.today()),
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow(),
                     )
                 )
+
+            try:
+                self._set_ats_status_with_session(
+                    session=session,
+                    ats_id=ats_id,
+                    target_estado_codigo=self.ATS_ESTADO_EN_PROCESO,
+                    user_id=user_id,
+                    role_code=role_code,
+                )
+            except (AccessDeniedError, RuntimeError) as exc:
+                self.form_error = str(exc)
+                session.rollback()
+                return
 
             session.commit()
             self.form_success = "Trabajadores y firmas guardados correctamente."
@@ -2233,12 +2938,17 @@ class AtsFormState(rx.State):
             self.observaciones = ""
             return
 
-        with rx.session() as session:
-            ats = session.get(Ats, ats_id)
-            if not ats:
-                self.form_error = "ATS no encontrado para cargar observaciones."
-                return
-            self.observaciones = str(ats.observaciones or "")
+        try:
+            with rx.session() as session:
+                self._assert_ats_access(session, ats_id, for_edit=False)
+                ats = session.get(Ats, ats_id)
+                if not ats:
+                    self.form_error = "ATS no encontrado para cargar observaciones."
+                    return
+                self.observaciones = str(ats.observaciones or "")
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            self.observaciones = ""
 
     async def save_observaciones(self):
         self.form_error = ""
@@ -2248,21 +2958,46 @@ class AtsFormState(rx.State):
         if not session_state.is_authenticated:
             return rx.redirect("/login")
 
+        self._sync_auth_context(session_state)
+        try:
+            user_id, role_code = self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            return
+
         ats_id = int(self.ats_id or 0)
         if ats_id <= 0:
             self.form_error = "Primero guarda la identificacion general del ATS."
             return
 
         with rx.session() as session:
+            try:
+                assert_can_edit_ats(session, ats_id, user_id, role_code)
+            except AccessDeniedError as exc:
+                self.form_error = str(exc)
+                return
+
             ats = session.get(Ats, ats_id)
             if not ats:
                 self.form_error = "ATS no encontrado para guardar observaciones."
                 return
 
             ats.observaciones = str(self.observaciones or "").strip() or None
-            ats.updated_at = str(date.today())
+            ats.updated_at = datetime.utcnow()
 
             session.add(ats)
+            try:
+                self._set_ats_status_with_session(
+                    session=session,
+                    ats_id=ats_id,
+                    target_estado_codigo=self.ATS_ESTADO_EN_PROCESO,
+                    user_id=user_id,
+                    role_code=role_code,
+                )
+            except (AccessDeniedError, RuntimeError) as exc:
+                self.form_error = str(exc)
+                session.rollback()
+                return
             session.commit()
             session.refresh(ats)
 
@@ -2282,6 +3017,13 @@ class AtsFormState(rx.State):
         session_state = await self.get_state(SessionState)
         if not session_state.is_authenticated:
             return rx.redirect("/login")
+
+        self._sync_auth_context(session_state)
+        try:
+            user_id, role_code = self._require_ats_role_context()
+        except AccessDeniedError as exc:
+            self.form_error = str(exc)
+            return
 
         ats_id = int(self.ats_id or 0)
         if ats_id <= 0:
@@ -2323,6 +3065,12 @@ class AtsFormState(rx.State):
             )
 
         with rx.session() as session:
+            try:
+                assert_can_edit_ats(session, ats_id, user_id, role_code)
+            except AccessDeniedError as exc:
+                self.form_error = str(exc)
+                return
+
             ats = session.get(Ats, ats_id)
             if not ats:
                 self.form_error = "ATS no encontrado para guardar firmas finales."
@@ -2330,7 +3078,7 @@ class AtsFormState(rx.State):
 
             session.exec(delete(AtsFirmaFinal).where(AtsFirmaFinal.ats_id == ats_id))
 
-            today = str(date.today())
+            now_ts = datetime.utcnow()
             for item in cleaned_payload:
                 session.add(
                     AtsFirmaFinal(
@@ -2339,10 +3087,23 @@ class AtsFormState(rx.State):
                         nombre_completo=str(item["nombre_completo"]),
                         cargo=str(item["cargo"]) or None,
                         firma_base64=str(item["firma_base64"]),
-                        created_at=today,
-                        updated_at=today,
+                        created_at=now_ts,
+                        updated_at=now_ts,
                     )
                 )
+
+            try:
+                self._set_ats_status_with_session(
+                    session=session,
+                    ats_id=ats_id,
+                    target_estado_codigo=self.ATS_ESTADO_FINALIZADO,
+                    user_id=user_id,
+                    role_code=role_code,
+                )
+            except (AccessDeniedError, RuntimeError) as exc:
+                self.form_error = str(exc)
+                session.rollback()
+                return
 
             session.commit()
             self.form_success = "Firmas finales guardadas correctamente."
@@ -2385,6 +3146,7 @@ class AtsFormState(rx.State):
         self.documentos_ats_options = []
         self.documentos_generados = []
         self.load_codigo_input = ""
+        self.documento_search_query = ""
         self.documento_selected_ats_id = 0
         self.documento_selected_codigo = ""
         self.documento_generado_url = ""

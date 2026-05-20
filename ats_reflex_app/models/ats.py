@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Optional
 
 import reflex as rx
@@ -17,17 +18,17 @@ class Ats(rx.Model, table=True):
     creado_por_usuario_id: int = Field(foreign_key="usuario.id")
 
     empresa_persona_ejecuta: str
-    fecha_elaboracion: str
+    fecha_elaboracion: date
     ciudad: str
     area_lugar: str
     numero_ats: Optional[str] = None
     duracion_actividad: str
-    actividad_alto_riesgo: int = 0
+    actividad_alto_riesgo: bool = False
     descripcion_actividad: str
     observaciones: Optional[str] = None
 
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class AtsApoyo(rx.Model, table=True):
@@ -37,7 +38,7 @@ class AtsApoyo(rx.Model, table=True):
     ats_id: int = Field(foreign_key="ats.id")
     apoyo_id: int = Field(foreign_key="apoyo_catalogo.id")
     descripcion_otro: Optional[str] = None
-    created_at: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class AtsCertificado(rx.Model, table=True):
@@ -47,7 +48,7 @@ class AtsCertificado(rx.Model, table=True):
     ats_id: int = Field(foreign_key="ats.id")
     certificado_id: int = Field(foreign_key="certificado_catalogo.id")
     descripcion_otro: Optional[str] = None
-    created_at: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class AtsPeligro(rx.Model, table=True):
@@ -57,7 +58,7 @@ class AtsPeligro(rx.Model, table=True):
     ats_id: int = Field(foreign_key="ats.id")
     peligro_id: int = Field(foreign_key="peligro_catalogo.id")
     descripcion_otro: Optional[str] = None
-    created_at: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class AtsPaso(rx.Model, table=True):
@@ -67,8 +68,8 @@ class AtsPaso(rx.Model, table=True):
     ats_id: int = Field(foreign_key="ats.id")
     numero_paso: int
     descripcion_paso: str
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class AtsPasoPeligro(rx.Model, table=True):
@@ -77,6 +78,7 @@ class AtsPasoPeligro(rx.Model, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     ats_paso_id: int = Field(foreign_key="ats_paso.id")
     ats_peligro_id: int = Field(foreign_key="ats_peligro.id")
+    descripcion_otro: Optional[str] = None
 
 
 class AtsPasoPeligroControl(rx.Model, table=True):
@@ -86,8 +88,8 @@ class AtsPasoPeligroControl(rx.Model, table=True):
     ats_paso_peligro_id: int = Field(foreign_key="ats_paso_peligro.id")
     control_id: int = Field(foreign_key="control_catalogo.id")
     control_aplicado: str
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class AtsTrabajador(rx.Model, table=True):
@@ -104,8 +106,8 @@ class AtsTrabajador(rx.Model, table=True):
     nombre_snapshot: Optional[str] = None
     documento_snapshot: Optional[str] = None
     cargo_snapshot: Optional[str] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class AtsFirmaFinal(rx.Model, table=True):
@@ -117,8 +119,8 @@ class AtsFirmaFinal(rx.Model, table=True):
     nombre_completo: str
     cargo: Optional[str] = None
     firma_base64: Optional[str] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class AtsDocumento(rx.Model, table=True):
@@ -132,4 +134,4 @@ class AtsDocumento(rx.Model, table=True):
     mime_type: Optional[str] = None
     version: int = 1
     generado_por_usuario_id: Optional[int] = Field(default=None, foreign_key="usuario.id")
-    created_at: Optional[str] = None
+    created_at: Optional[datetime] = None

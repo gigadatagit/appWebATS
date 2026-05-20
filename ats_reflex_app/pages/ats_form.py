@@ -545,22 +545,6 @@ def identificacion_general_section() -> rx.Component:
                 ),
                 icon_tag="badge_check",
             ),
-            _form_block(
-                "Observaciones",
-                "Notas adicionales relevantes para el equipo y la revisión posterior.",
-                rx.box(
-                    _field_label("Observaciones generales", optional=True),
-                    rx.text_area(
-                        placeholder="Agrega observaciones relevantes del ATS...",
-                        value=AtsFormState.observaciones,
-                        on_change=AtsFormState.set_observaciones,
-                        width="100%",
-                        min_height="140px",
-                    ),
-                    width="100%",
-                ),
-                icon_tag="message_square",
-            ),
             rx.cond(AtsFormState.form_error != "", rx.callout(AtsFormState.form_error, color_scheme="red", icon="triangle_alert")),
             rx.cond(AtsFormState.form_success != "", rx.callout(AtsFormState.form_success, color_scheme="green", icon="circle_check")),
             _flow_action_bar(
@@ -800,6 +784,28 @@ def pasos_section() -> rx.Component:
                                                         align="center",
                                                         spacing="2",
                                                         flex_wrap="wrap",
+                                                    ),
+                                                    rx.cond(
+                                                        (peligro["peligro_id"] > 0)
+                                                        & (peligro["peligro_id"] == AtsFormState.paso3_otro_peligro_id),
+                                                        rx.box(
+                                                            _field_label("Descripcion otro peligro", required=True),
+                                                            rx.text_area(
+                                                                placeholder="Describe el otro peligro identificado...",
+                                                                value=peligro["descripcion_otro"],
+                                                                on_change=lambda value: AtsFormState.set_paso3_descripcion_otro_peligro(
+                                                                    paso["uid"], peligro["uid"], value
+                                                                ),
+                                                                min_height="100px",
+                                                                width="100%",
+                                                            ),
+                                                            rx.text(
+                                                                "Esta descripcion se guarda solo para este peligro en este paso.",
+                                                                size="2",
+                                                                color="#64748b",
+                                                            ),
+                                                            width="100%",
+                                                        ),
                                                     ),
                                                     rx.box(
                                                         _field_label("Controles aplicables", required=True),
@@ -1119,8 +1125,6 @@ def trabajadores_section() -> rx.Component:
                                             clear_on_resize=False,
                                             canvas_props={
                                                 "className": "ats-signature-canvas",
-                                                "width": 1200,
-                                                "height": 440,
                                                 "style": {
                                                     "width": "100%",
                                                     "height": "100%",
@@ -1499,8 +1503,6 @@ def firmas_section() -> rx.Component:
                                             clear_on_resize=False,
                                             canvas_props={
                                                 "className": "ats-firma-final-canvas",
-                                                "width": 1200,
-                                                "height": 420,
                                                 "style": {
                                                     "width": "100%",
                                                     "height": "100%",
@@ -1731,14 +1733,171 @@ def current_section() -> rx.Component:
     )
 
 
+def _signature_canvas_sync_script() -> rx.Component:
+    return rx.script(
+        """
+(() => {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return;
+  }
+
+  const STATE_KEY = "__atsSignatureCanvasSyncV1";
+  const previous = window[STATE_KEY];
+  if (previous && typeof previous.destroy === "function") {
+    previous.destroy();
+  }
+
+  const canvasSelector = ".ats-signature-root canvas, .ats-firma-final-root canvas";
+  const canvasState = new WeakMap();
+  const hasResizeObserver = typeof ResizeObserver !== "undefined";
+  const hasMutationObserver = typeof MutationObserver !== "undefined";
+
+  const raf = (callback) => {
+    if (typeof window.requestAnimationFrame === "function") {
+      return window.requestAnimationFrame(callback);
+    }
+    return window.setTimeout(callback, 0);
+  };
+
+  const syncCanvasSize = (canvas) => {
+    if (!(canvas instanceof HTMLCanvasElement)) {
+      return;
+    }
+
+    const container = canvas.parentElement;
+    if (!(container instanceof HTMLElement)) {
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return;
+    }
+
+    const cssWidth = Math.max(1, Math.round(rect.width));
+    const cssHeight = Math.max(1, Math.round(rect.height));
+    const dpr = Math.max(window.devicePixelRatio || 1, 1);
+    const targetWidth = Math.max(1, Math.round(cssWidth * dpr));
+    const targetHeight = Math.max(1, Math.round(cssHeight * dpr));
+
+    if (canvas.width === targetWidth && canvas.height === targetHeight) {
+      const currentCtx = canvas.getContext("2d");
+      if (currentCtx) {
+        currentCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      return;
+    }
+
+    const snapshot = document.createElement("canvas");
+    snapshot.width = canvas.width;
+    snapshot.height = canvas.height;
+    const snapshotCtx = snapshot.getContext("2d");
+    if (snapshotCtx && snapshot.width > 0 && snapshot.height > 0) {
+      snapshotCtx.drawImage(canvas, 0, 0);
+    }
+
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+    if (snapshot.width > 0 && snapshot.height > 0) {
+      ctx.drawImage(snapshot, 0, 0, cssWidth, cssHeight);
+    }
+  };
+
+  const scheduleSync = (canvas) => {
+    raf(() => syncCanvasSize(canvas));
+  };
+
+  const attachCanvas = (canvas) => {
+    if (!(canvas instanceof HTMLCanvasElement) || canvasState.has(canvas)) {
+      return;
+    }
+
+    const container = canvas.parentElement;
+    if (!(container instanceof HTMLElement)) {
+      return;
+    }
+
+    const entry = { resizeObserver: null };
+    canvasState.set(canvas, entry);
+
+    if (hasResizeObserver) {
+      const resizeObserver = new ResizeObserver(() => {
+        scheduleSync(canvas);
+      });
+      resizeObserver.observe(container);
+      entry.resizeObserver = resizeObserver;
+    }
+
+    scheduleSync(canvas);
+    window.setTimeout(() => syncCanvasSize(canvas), 0);
+  };
+
+  const scanCanvases = () => {
+    document.querySelectorAll(canvasSelector).forEach((canvas) => {
+      attachCanvas(canvas);
+    });
+  };
+
+  const mutationObserver = hasMutationObserver
+    ? new MutationObserver(() => {
+        scanCanvases();
+      })
+    : null;
+
+  if (mutationObserver) {
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
+  const handleWindowResize = () => {
+    scanCanvases();
+    document.querySelectorAll(canvasSelector).forEach((canvas) => {
+      scheduleSync(canvas);
+    });
+  };
+  window.addEventListener("resize", handleWindowResize);
+
+  scanCanvases();
+  raf(scanCanvases);
+
+  window[STATE_KEY] = {
+    destroy: () => {
+      window.removeEventListener("resize", handleWindowResize);
+      if (mutationObserver) {
+        mutationObserver.disconnect();
+      }
+      document.querySelectorAll(canvasSelector).forEach((canvas) => {
+        const state = canvasState.get(canvas);
+        if (state && state.resizeObserver) {
+          state.resizeObserver.disconnect();
+        }
+      });
+      delete window[STATE_KEY];
+    },
+  };
+})()
+        """
+    )
+
+
 @rx.page(route="/ats/formato", title="Formato ATS", on_load=AtsFormState.load_initial_data)
 def ats_form_page() -> rx.Component:
     content = rx.vstack(
+        _signature_canvas_sync_script(),
         section_selector(),
         current_section(),
         rx.box(
             rx.heading("ATS recientes", size="5"),
-            rx.text("Esto ya viene conectado a la base SQLite.", color="#64748b"),
+            rx.text("Listado reciente segun el entorno de base de datos configurado.", color="#64748b"),
             rx.table.root(
                 rx.table.header(
                     rx.table.row(

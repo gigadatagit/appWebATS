@@ -1,95 +1,158 @@
-# ATS Reflex App - Base inicial
+# ATS Reflex App
 
-Base inicial en **Reflex + SQLite** para el módulo **Formato ATS** con:
+Aplicacion ATS en `Reflex` con autenticacion en `Supabase Auth` y persistencia en PostgreSQL/Supabase via `DATABASE_URL`.
 
-- conexión a la base SQLite
-- bootstrap automático del esquema SQL
-- login local por roles (`ADMIN`, `SISO`)
-- sidebar izquierda
-- página ATS con estructura base tipo wizard
-- dashboard administrativo básico
-- listado de ATS recientes
-- modelos `rx.Model` alineados con el esquema
+## Reglas clave actuales
 
-## 1) Crear entorno e instalar
+- No se ejecuta DDL desde la app contra Supabase.
+- No hay Alembic ni migraciones por version en esta etapa.
+- `SQLite` se mantiene solo como fallback local de desarrollo.
+- El login principal es por `Supabase Auth` (email/password).
+- El perfil interno y roles se resuelven en `public.usuario` + `public.rol`.
+
+## Variables de entorno
+
+Define estas variables (por ejemplo en `.env`):
+
+```bash
+APP_ENV=development
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DB
+# Optional alternative if DATABASE_URL is empty:
+DB_USER=
+DB_PASSWORD=
+DB_HOST=
+DB_PORT=5432
+DB_NAME=
+DB_SSLMODE=require
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_ANON_KEY=<anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key-backend-only>
+SUPABASE_STORAGE_BUCKET=ATSDocumentos
+ATS_PDF_ENGINE=word
+SUPABASE_SIGNED_URL_TTL_SECONDS=600
+# Opcional:
+SUPABASE_JWT_SECRET=
+```
+
+### Notas
+
+- Si `DATABASE_URL` no existe pero defines `DB_USER/DB_PASSWORD/DB_HOST/DB_PORT/DB_NAME`, la app construye una URL PostgreSQL automaticamente.
+- Si no existe ni `DATABASE_URL` ni esas variables, la app usa `sqlite:///data/ats_app.db`.
+- Si tu password tiene caracteres especiales (`+`, `/`, `@`, `:`), usa variables `DB_*` para que el sistema codifique la URL correctamente.
+- Si faltan `SUPABASE_URL` o `SUPABASE_ANON_KEY`, el login se bloquea por diseno.
+- `SUPABASE_SERVICE_ROLE_KEY` es solo backend (nunca frontend/estado UI/logs).
+- `SUPABASE_STORAGE_BUCKET` debe apuntar al bucket privado (`ATSDocumentos`).
+- `ATS_PDF_ENGINE`:
+  - `word`: entorno local Windows con Microsoft Word + `docx2pdf`.
+  - `libreoffice`: entorno Linux/Railway con `soffice --headless`.
+- `SUPABASE_SIGNED_URL_TTL_SECONDS` controla vigencia de URL firmada en historial (default 600s).
+
+## Instalacion local
 
 ```bash
 python -m venv .venv
-# Windows
 .venv\Scripts\activate
-# Linux / macOS
-source .venv/bin/activate
-
 pip install -r requirements.txt
-```
-
-## 2) Iniciar proyecto Reflex
-
-```bash
-reflex init
-```
-
-Si `reflex init` te pregunta por archivos que ya existen, conserva los de este proyecto.
-
-## 3) Ejecutar la app
-
-```bash
 reflex run
 ```
 
-La primera vez, el proyecto crea automáticamente:
+## Conexion de base de datos
 
-- `data/ats_app.db`
-- el esquema desde `sql/01_schema.sql`
-- dos usuarios demo locales si no existen
+- `rxconfig.py` lee `DATABASE_URL`.
+- `ats_reflex_app/config.py` tambien puede construir `DATABASE_URL` desde variables separadas (`DB_*` o `user/password/host/port/dbname`).
+- `ats_reflex_app.py` ejecuta `ensure_database()` solo si la URL es SQLite.
+- `db_bootstrap.py` queda aislado para desarrollo local SQLite.
+- `ats_reflex_app/db_engine.py` incluye `create_sqlalchemy_engine()` y `test_database_connection()` (opcional, sin DDL).
 
-## 4) Usuarios demo
+## Autorizacion ATS (app-level, preparada para RLS)
 
-- **admin** / `Admin123*`
-- **siso** / `Siso123*`
+- Rol `ADMIN`: acceso total a ATS.
+- Rol `SISO`: solo ATS propios (`ats.creado_por_usuario_id == current_user_id`).
+- Tablas hijas (`ats_*`) heredan permiso del ATS padre.
+- `creado_por_usuario_id` se asigna desde sesion al crear ATS y no se edita despues.
+- `generado_por_usuario_id` en documentos se asigna desde sesion.
 
-Cámbialos apenas valides la base.
+## Reflex Cloud (staging/prod)
 
-## 5) Estructura
+Configura secretos:
 
-```text
-ats_reflex_app/
-├─ rxconfig.py
-├─ requirements.txt
-├─ README.md
-├─ data/
-├─ sql/
-│  └─ 01_schema.sql
-└─ ats_reflex_app/
-   ├─ __init__.py
-   ├─ ats_reflex_app.py
-   ├─ db_bootstrap.py
-   ├─ security.py
-   ├─ styles.py
-   ├─ template.py
-   ├─ components/
-   ├─ models/
-   ├─ pages/
-   └─ state/
+- `DATABASE_URL`
+- `APP_ENV`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_STORAGE_BUCKET`
+- `ATS_PDF_ENGINE`
+- `SUPABASE_SIGNED_URL_TTL_SECONDS`
+
+Recomendacion de conexion:
+
+1. Usar `Direct connection` si la red lo permite.
+2. Si no, usar `Supavisor Session mode`.
+3. Evitar `Transaction pooler` para este backend persistente con SQLAlchemy/Reflex.
+
+## Despliegue en Railway con Docker (Fase 6)
+
+- Railway detecta automaticamente el `Dockerfile` en la raiz del proyecto.
+- El contenedor arranca en single-port con Reflex prod y usa `PORT` (Railway lo inyecta automaticamente).
+- En runtime de contenedor, `DATABASE_URL` es obligatorio; si falta, el proceso termina para evitar fallback a SQLite en produccion.
+
+Variables requeridas en Railway:
+
+- `DATABASE_URL`
+- `APP_ENV=production`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_STORAGE_BUCKET=ATSDocumentos`
+- `ATS_PDF_ENGINE=libreoffice`
+- `SUPABASE_SIGNED_URL_TTL_SECONDS` (opcional recomendado)
+
+Comandos de prueba local con Docker:
+
+```bash
+docker build -t ats-reflex-railway .
+docker run --rm -p 8080:8080 \
+  -e PORT=8080 \
+  -e DATABASE_URL="<postgres-url>" \
+  -e APP_ENV=production \
+  -e SUPABASE_URL="<url>" \
+  -e SUPABASE_ANON_KEY="<anon>" \
+  -e SUPABASE_SERVICE_ROLE_KEY="<service_role>" \
+  -e SUPABASE_STORAGE_BUCKET=ATSDocumentos \
+  -e ATS_PDF_ENGINE=libreoffice \
+  ats-reflex-railway
 ```
 
-## 6) Qué hace ya esta base
+## Checklist operativo minimo
 
-- login local usando la tabla `usuario`
-- separación por estados/páginas
-- carga y persistencia básica de ATS
-- tarjetas de resumen para admin
-- placeholders listos para seguir con:
-  - peligros y riesgos
-  - pasos dinámicos
-  - trabajadores dinámicos
-  - firmas
-  - generación PDF
+1. El usuario existe en `auth.users`.
+2. Existe perfil activo en `public.usuario` con `auth_user_id` enlazado.
+3. Tiene `rol_id` valido (`ADMIN` o `SISO`) en `public.rol`.
+4. `DATABASE_URL` y claves Supabase estan configuradas en el entorno.
 
-## 7) Siguiente paso recomendado
+## Prueba de documentos ATS (Fase 5)
 
-1. completar el wizard ATS por secciones
-2. conectar checklists de peligros, apoyos y certificados
-3. agregar componente de firma real
-4. generar PDF con Python
-5. endurecer autenticación y permisos
+### Local Windows (Word/docx2pdf)
+
+1. Configura:
+   - `ATS_PDF_ENGINE=word`
+   - `SUPABASE_STORAGE_BUCKET=ATSDocumentos`
+   - `SUPABASE_SERVICE_ROLE_KEY=...`
+2. Verifica que Microsoft Word y `docx2pdf` funcionen en sesion interactiva.
+3. En `/ats/documentos`, busca un ATS, genera PDF y confirma:
+   - descarga automatica,
+   - nuevo objeto en Storage con ruta `ATS-CODIGO/vN/ATS-CODIGO_vN.pdf`,
+   - nuevo registro en `ats_documento` con version incremental.
+
+### Linux / Railway (LibreOffice)
+
+1. Configura:
+   - `ATS_PDF_ENGINE=libreoffice`
+   - `SUPABASE_STORAGE_BUCKET=ATSDocumentos`
+   - `SUPABASE_SERVICE_ROLE_KEY=...`
+2. Asegura que `soffice` este disponible en runtime.
+3. Genera documento desde `/ats/documentos` y valida:
+   - descarga automatica,
+   - carga en bucket privado,
+   - historial con URL firmada backend.

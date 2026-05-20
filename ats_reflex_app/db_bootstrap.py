@@ -4,6 +4,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 
+from .config import get_database_url, is_sqlite_url
 from .security import hash_password
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -106,6 +107,9 @@ CONTROL_SEED_ROWS: list[tuple[str, str, str, str, int]] = [
 
 
 def ensure_database() -> None:
+    if not is_sqlite_url(get_database_url()):
+        return
+
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     first_creation = not DB_PATH.exists()
 
@@ -268,6 +272,7 @@ def _migrate_ats_paso_peligro_schema(conn: sqlite3.Connection) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ats_paso_id INTEGER NOT NULL,
                 ats_peligro_id INTEGER NOT NULL,
+                descripcion_otro TEXT,
                 FOREIGN KEY (ats_paso_id) REFERENCES ats_paso(id) ON DELETE CASCADE,
                 FOREIGN KEY (ats_peligro_id) REFERENCES ats_peligro(id) ON DELETE CASCADE,
                 UNIQUE (ats_paso_id, ats_peligro_id)
@@ -281,7 +286,8 @@ def _migrate_ats_paso_peligro_schema(conn: sqlite3.Connection) -> None:
         ]
         column_set = set(columns)
         legacy_has_control_cols = "control_id" in column_set or "control_aplicado" in column_set
-        requires_rebuild = column_set != {"id", "ats_paso_id", "ats_peligro_id"}
+        has_core_columns = {"id", "ats_paso_id", "ats_peligro_id"}.issubset(column_set)
+        requires_rebuild = legacy_has_control_cols or not has_core_columns
 
         if legacy_has_control_cols and _column_exists(conn, "ats_paso", "controles_a_realizar"):
             conn.execute(
@@ -321,21 +327,53 @@ def _migrate_ats_paso_peligro_schema(conn: sqlite3.Connection) -> None:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     ats_paso_id INTEGER NOT NULL,
                     ats_peligro_id INTEGER NOT NULL,
+                    descripcion_otro TEXT,
                     FOREIGN KEY (ats_paso_id) REFERENCES ats_paso(id) ON DELETE CASCADE,
                     FOREIGN KEY (ats_peligro_id) REFERENCES ats_peligro(id) ON DELETE CASCADE,
                     UNIQUE (ats_paso_id, ats_peligro_id)
                 )
                 """
             )
+            source_descripcion_expr = (
+                "NULLIF(TRIM(COALESCE(descripcion_otro, '')), '')"
+                if "descripcion_otro" in column_set
+                else "NULL"
+            )
             conn.execute(
                 """
-                INSERT INTO _tmp_ats_paso_peligro_new (id, ats_paso_id, ats_peligro_id)
-                SELECT id, ats_paso_id, ats_peligro_id
+                INSERT INTO _tmp_ats_paso_peligro_new (id, ats_paso_id, ats_peligro_id, descripcion_otro)
+                SELECT id, ats_paso_id, ats_peligro_id, """
+                + source_descripcion_expr
+                + """
                 FROM ats_paso_peligro
                 """
             )
             conn.execute("DROP TABLE ats_paso_peligro")
             conn.execute("ALTER TABLE _tmp_ats_paso_peligro_new RENAME TO ats_paso_peligro")
+
+    _add_column_if_missing(conn, "ats_paso_peligro", "descripcion_otro TEXT")
+    conn.execute(
+        """
+        UPDATE ats_paso_peligro
+        SET descripcion_otro = (
+            SELECT NULLIF(TRIM(COALESCE(ap.descripcion_otro, '')), '')
+            FROM ats_peligro ap
+            JOIN peligro_catalogo pc ON pc.id = ap.peligro_id
+            WHERE ap.id = ats_paso_peligro.ats_peligro_id
+              AND UPPER(COALESCE(pc.codigo, '')) = 'OTRO_PELIGRO'
+            LIMIT 1
+        )
+        WHERE COALESCE(TRIM(descripcion_otro), '') = ''
+          AND EXISTS (
+              SELECT 1
+              FROM ats_peligro ap
+              JOIN peligro_catalogo pc ON pc.id = ap.peligro_id
+              WHERE ap.id = ats_paso_peligro.ats_peligro_id
+                AND UPPER(COALESCE(pc.codigo, '')) = 'OTRO_PELIGRO'
+                AND COALESCE(TRIM(ap.descripcion_otro), '') <> ''
+          )
+        """
+    )
 
     if not _table_exists(conn, "ats_paso_peligro_control"):
         conn.execute(
@@ -541,6 +579,7 @@ def _create_or_replace_views(conn: sqlite3.Connection) -> None:
             p.numero_paso,
             p.descripcion_paso,
             app.id AS ats_paso_peligro_id,
+            app.descripcion_otro AS peligro_descripcion_otro,
             pc.id AS peligro_catalogo_id,
             pc.codigo AS peligro_codigo,
             pc.nombre AS peligro_nombre,
