@@ -23,17 +23,17 @@ COLORS = {
     "green_neon": "#37ff9b",
 }
 
-SIDEBAR_WIDTH = "280px"
 
 PAGE_STYLE = {
     "min_height": "100vh",
     "color": COLORS["text"],
     "bg": (
-        "radial-gradient(circle at 8% 5%, rgba(22, 199, 132, 0.18), transparent 34%), "
-        "radial-gradient(circle at 88% 10%, rgba(55, 255, 155, 0.10), transparent 30%), "
+        "radial-gradient(circle at 8% 4%, rgba(22, 199, 132, 0.18), transparent 36%), "
+        "radial-gradient(circle at 88% 8%, rgba(55, 255, 155, 0.11), transparent 32%), "
         "linear-gradient(155deg, #020d08 0%, #07190f 48%, #0b2619 100%)"
     ),
 }
+
 
 CARD_STYLE = {
     "bg": COLORS["card"],
@@ -43,28 +43,33 @@ CARD_STYLE = {
     "backdrop_filter": "blur(10px)",
 }
 
+
 BUTTON_PRIMARY_STYLE = {
     "bg": f"linear-gradient(135deg, {COLORS['green_neon']}, {COLORS['green']})",
     "color": "#032015",
     "border_radius": "999px",
-    "padding_x": "1.35rem",
-    "padding_y": "0.95rem",
+    "padding_x": "1.25rem",
+    "padding_y": "0.9rem",
     "font_weight": "800",
     "box_shadow": "0 20px 48px rgba(22, 199, 132, 0.34)",
+    "transition": "all 180ms ease",
     "_hover": {
         "transform": "translateY(-2px)",
         "box_shadow": "0 28px 62px rgba(22, 199, 132, 0.42)",
     },
+    "_active": {"transform": "translateY(1px)"},
 }
+
 
 BUTTON_SECONDARY_STYLE = {
     "bg": "rgba(255, 255, 255, 0.07)",
     "color": COLORS["text"],
     "border": f"1px solid {COLORS['border']}",
     "border_radius": "999px",
-    "padding_x": "1.35rem",
-    "padding_y": "0.95rem",
+    "padding_x": "1.25rem",
+    "padding_y": "0.9rem",
     "font_weight": "700",
+    "transition": "all 180ms ease",
     "_hover": {
         "bg": "rgba(255, 255, 255, 0.14)",
         "transform": "translateY(-2px)",
@@ -72,160 +77,13 @@ BUTTON_SECONDARY_STYLE = {
 }
 
 
-def _main_container(*children: rx.Component) -> rx.Component:
+def _container(*children: rx.Component) -> rx.Component:
     return rx.box(
         *children,
         width="100%",
         max_width="1120px",
         margin_x="auto",
-        padding_x={"base": "1rem", "md": "2rem", "xl": "2.5rem"},
-    )
-
-
-def sidebar_link(label: str, href: str, icon_tag: str) -> rx.Component:
-    return rx.link(
-        rx.hstack(
-            rx.box(
-                rx.icon(tag=icon_tag, size=17, color=COLORS["green_soft"]),
-                width="34px",
-                height="34px",
-                border_radius="12px",
-                display="grid",
-                place_items="center",
-                bg="rgba(22, 199, 132, 0.12)",
-                border=f"1px solid {COLORS['border_soft']}",
-                flex_shrink="0",
-            ),
-            rx.text(label, font_weight="700", color=COLORS["muted"]),
-            spacing="3",
-            align="center",
-            width="100%",
-            padding="0.75rem",
-            border_radius="16px",
-            transition="all 180ms ease",
-            _hover={
-                "bg": "rgba(255, 255, 255, 0.08)",
-                "transform": "translateX(3px)",
-            },
-        ),
-        href=href,
-        width="100%",
-    )
-
-
-def landing_sidebar() -> rx.Component:
-    return rx.box(
-        rx.vstack(
-            rx.link(
-                rx.hstack(
-                    app_brand(show_text=False, logo_size="46px"),
-                    rx.vstack(
-                        rx.text(
-                            "App ATS SST",
-                            font_weight="900",
-                            color=COLORS["green_soft"],
-                            letter_spacing="-0.03em",
-                            line_height="1",
-                        ),
-                        rx.text(
-                            "Gestión SST digital",
-                            color=COLORS["soft"],
-                            size="1",
-                        ),
-                        spacing="0",
-                        align="start",
-                    ),
-                    spacing="3",
-                    align="center",
-                ),
-                href="#top",
-            ),
-            rx.box(
-                height="1px",
-                width="100%",
-                bg=COLORS["border_soft"],
-                margin_y="0.75rem",
-            ),
-            rx.vstack(
-                sidebar_link("Inicio", "#top", "home"),
-                sidebar_link("Módulos", "#modulos", "layout_grid"),
-                sidebar_link("Entrar al sistema", "/login", "log_in"),
-                spacing="3",
-                width="100%",
-                align="stretch",
-            ),
-            rx.spacer(),
-            rx.box(
-                rx.text(
-                    "Digitaliza el ATS con trazabilidad, documentos PDF y control operativo.",
-                    color=COLORS["soft"],
-                    line_height="1.55",
-                    font_size="0.9rem",
-                ),
-                padding="1rem",
-                border_radius="20px",
-                bg="rgba(22, 199, 132, 0.10)",
-                border=f"1px solid {COLORS['border_soft']}",
-                width="100%",
-            ),
-            width="100%",
-            height="100%",
-            align="stretch",
-            spacing="4",
-        ),
-        width=SIDEBAR_WIDTH,
-        min_width=SIDEBAR_WIDTH,
-        height="calc(100vh - 2rem)",
-        position="sticky",
-        top="1rem",
-        padding="1rem",
-        margin="1rem",
-        display={"base": "none", "lg": "block"},
-        **CARD_STYLE,
-    )
-
-
-def mobile_nav() -> rx.Component:
-    return rx.box(
-        _main_container(
-            rx.hstack(
-                rx.link(
-                    rx.hstack(
-                        app_brand(show_text=False, logo_size="40px"),
-                        rx.text(
-                            "App ATS SST",
-                            font_weight="900",
-                            color=COLORS["green_soft"],
-                        ),
-                        spacing="2",
-                        align="center",
-                    ),
-                    href="#top",
-                ),
-                rx.hstack(
-                    rx.link("Inicio", href="#top", color=COLORS["green_soft"], font_weight="700"),
-                    rx.link("Módulos", href="#modulos", color=COLORS["green_soft"], font_weight="700"),
-                    rx.link(
-                        rx.button("Entrar", **BUTTON_PRIMARY_STYLE),
-                        href="/login",
-                    ),
-                    spacing="3",
-                    align="center",
-                ),
-                justify="between",
-                align="center",
-                width="100%",
-                spacing="3",
-            )
-        ),
-        display={"base": "block", "lg": "none"},
-        position="sticky",
-        top="0",
-        z_index="50",
-        padding_y="0.8rem",
-        bg="rgba(3, 16, 10, 0.88)",
-        backdrop_filter="blur(12px)",
-        border_bottom=f"1px solid {COLORS['border']}",
+        padding_x={"base": "1rem", "sm": "1.25rem", "lg": "2rem"},
     )
 
 
@@ -244,152 +102,215 @@ def _button_link(label: str, href: str, primary: bool = True) -> rx.Component:
     )
 
 
-def hero_bullet(text: str) -> rx.Component:
-    return rx.hstack(
-        rx.box(
-            rx.icon(tag="badge_check", size=15, color=COLORS["green_soft"]),
-            width="28px",
-            height="28px",
-            border_radius="999px",
-            display="grid",
-            place_items="center",
-            bg="rgba(22, 199, 132, 0.14)",
-            border=f"1px solid {COLORS['border']}",
-            flex_shrink="0",
-        ),
-        rx.text(text, color=COLORS["muted"], line_height="1.5"),
-        spacing="3",
-        align="center",
-        width="100%",
-    )
-
-
-def dashboard_preview() -> rx.Component:
-    return rx.box(
-        rx.vstack(
+def drawer_link(label: str, href: str, icon_tag: str, primary: bool = False) -> rx.Component:
+    return rx.drawer.close(
+        rx.link(
             rx.hstack(
-                rx.text("Vista general ATS", color=COLORS["green_soft"], font_weight="800"),
-                rx.badge("ADMIN", color_scheme="green", variant="soft", radius="full"),
-                justify="between",
-                width="100%",
-                align="center",
-            ),
-            rx.grid(
                 rx.box(
-                    rx.heading("128", size="7", color=COLORS["green_soft"]),
-                    rx.text("ATS gestionados", color=COLORS["soft"], size="2"),
-                    padding="1rem",
-                    border_radius="18px",
-                    bg="rgba(255,255,255,0.06)",
-                    border=f"1px solid {COLORS['border_soft']}",
-                ),
-                rx.box(
-                    rx.heading("27%", size="7", color=COLORS["green_soft"]),
-                    rx.text("Alto riesgo", color=COLORS["soft"], size="2"),
-                    padding="1rem",
-                    border_radius="18px",
-                    bg="rgba(255,255,255,0.06)",
-                    border=f"1px solid {COLORS['border_soft']}",
-                ),
-                columns={"base": "1", "sm": "2"},
-                gap="1rem",
-                width="100%",
-            ),
-            rx.box(
-                rx.hstack(
-                    rx.text("Trazabilidad documental", color=COLORS["muted"], size="2"),
-                    rx.text("78%", color=COLORS["green_soft"], size="2", font_weight="800"),
-                    justify="between",
-                    width="100%",
-                    margin_bottom="0.6rem",
-                ),
-                rx.box(
-                    rx.box(
-                        width="78%",
-                        height="100%",
-                        border_radius="999px",
-                        bg=f"linear-gradient(90deg, {COLORS['green']}, {COLORS['green_neon']})",
+                    rx.icon(
+                        tag=icon_tag,
+                        size=18,
+                        color="#032015" if primary else COLORS["green_soft"],
                     ),
-                    width="100%",
-                    height="9px",
-                    border_radius="999px",
-                    bg="rgba(255,255,255,0.12)",
+                    width="38px",
+                    height="38px",
+                    border_radius="14px",
+                    display="grid",
+                    place_items="center",
+                    bg=(
+                        f"linear-gradient(135deg, {COLORS['green_neon']}, {COLORS['green']})"
+                        if primary
+                        else "rgba(22, 199, 132, 0.14)"
+                    ),
+                    border=f"1px solid {COLORS['border']}",
+                    flex_shrink="0",
                 ),
+                rx.text(
+                    label,
+                    font_weight="800",
+                    color="#032015" if primary else COLORS["text"],
+                ),
+                spacing="3",
+                align="center",
                 width="100%",
-                padding="1rem",
+                padding="0.85rem",
                 border_radius="18px",
-                bg="rgba(255,255,255,0.06)",
-                border=f"1px solid {COLORS['border_soft']}",
+                bg=(
+                    f"linear-gradient(135deg, {COLORS['green_neon']}, {COLORS['green']})"
+                    if primary
+                    else "rgba(255,255,255,0.06)"
+                ),
+                border=f"1px solid {COLORS['border']}",
+                transition="all 180ms ease",
+                _hover={
+                    "transform": "translateX(3px)",
+                    "bg": (
+                        f"linear-gradient(135deg, {COLORS['green_neon']}, {COLORS['green']})"
+                        if primary
+                        else "rgba(255,255,255,0.1)"
+                    ),
+                },
             ),
-            spacing="4",
+            href=href,
             width="100%",
-        ),
-        padding={"base": "1.25rem", "md": "1.5rem"},
-        **CARD_STYLE,
+        )
     )
 
 
-def hero_section() -> rx.Component:
-    return rx.box(
-        _main_container(
-            rx.grid(
-                rx.box(
-                    rx.badge(
-                        "App web ATS SST",
-                        color_scheme="green",
-                        variant="soft",
-                        radius="full",
-                        padding_x="0.8rem",
-                        padding_y="0.35rem",
-                        margin_bottom="1.25rem",
-                    ),
-                    rx.heading(
-                        "Gestiona el ATS con trazabilidad, PDF versionado y métricas claras.",
-                        size={"base": "8", "md": "9"},
-                        line_height="0.98",
-                        letter_spacing="-0.06em",
-                        max_width="780px",
-                        margin_bottom="1.1rem",
-                    ),
-                    rx.text(
-                        (
-                            "Una plataforma web para centralizar el proceso SST: registro estructurado, "
-                            "control documental, seguimiento por roles y consulta rápida de información operativa."
+def landing_drawer() -> rx.Component:
+    return rx.drawer.root(
+        rx.drawer.trigger(
+            rx.button(
+                rx.icon(tag="menu", size=22),
+                variant="ghost",
+                color=COLORS["green_soft"],
+                width="44px",
+                height="44px",
+                border_radius="14px",
+                bg="rgba(255,255,255,0.06)",
+                border=f"1px solid {COLORS['border']}",
+                _hover={"bg": "rgba(255,255,255,0.12)"},
+                custom_attrs={"aria-label": "Abrir menú"},
+            )
+        ),
+        rx.drawer.overlay(
+            bg="rgba(0, 0, 0, 0.55)",
+            backdrop_filter="blur(4px)",
+            z_index="90",
+        ),
+        rx.drawer.portal(
+            rx.drawer.content(
+                rx.vstack(
+                    rx.hstack(
+                        app_brand(show_text=False, logo_size="46px"),
+                        rx.vstack(
+                            rx.drawer.title(
+                                "App ATS SST",
+                                font_weight="900",
+                                color=COLORS["green_soft"],
+                                letter_spacing="-0.03em",
+                                line_height="1",
+                            ),
+                            rx.drawer.description(
+                                "Menú de navegación",
+                                color=COLORS["soft"],
+                                font_size="0.85rem",
+                            ),
+                            spacing="0",
+                            align="start",
                         ),
-                        color=COLORS["muted"],
-                        line_height="1.75",
-                        font_size={"base": "1rem", "md": "1.1rem"},
-                        max_width="720px",
-                        margin_bottom="1.6rem",
+                        rx.spacer(),
+                        rx.drawer.close(
+                            rx.button(
+                                rx.icon(tag="x", size=18),
+                                variant="ghost",
+                                color=COLORS["green_soft"],
+                                width="38px",
+                                height="38px",
+                                border_radius="12px",
+                                _hover={"bg": "rgba(255,255,255,0.1)"},
+                                custom_attrs={"aria-label": "Cerrar menú"},
+                            )
+                        ),
+                        width="100%",
+                        align="center",
+                        spacing="3",
+                    ),
+                    rx.box(
+                        height="1px",
+                        width="100%",
+                        bg=COLORS["border_soft"],
+                        margin_y="0.75rem",
                     ),
                     rx.vstack(
-                        hero_bullet("Registro ATS por fases con información clara y ordenada."),
-                        hero_bullet("Relación entre tarea, peligro y control aplicado."),
-                        hero_bullet("Documentos PDF y trazabilidad para seguimiento operativo."),
+                        drawer_link("Módulos", "#modulos", "layout_grid"),
+                        drawer_link("Entrar al sistema", "/login", "log_in", primary=True),
                         spacing="3",
                         width="100%",
                         align="stretch",
-                        margin_bottom="2rem",
                     ),
-                    rx.hstack(
-                        _button_link("Entrar al sistema", "/login", primary=True),
-                        _button_link("Ver módulos", "#modulos", primary=False),
-                        spacing="3",
-                        flex_wrap="wrap",
+                    rx.spacer(),
+                    rx.box(
+                        rx.text(
+                            "Gestiona el ATS de forma digital, clara y trazable.",
+                            color=COLORS["muted"],
+                            line_height="1.6",
+                            font_size="0.95rem",
+                        ),
+                        padding="1rem",
+                        border_radius="20px",
+                        bg="rgba(22, 199, 132, 0.10)",
+                        border=f"1px solid {COLORS['border_soft']}",
+                        width="100%",
                     ),
                     width="100%",
+                    height="100%",
+                    align="stretch",
+                    spacing="4",
                 ),
-                dashboard_preview(),
-                columns={"base": "1", "xl": "2"},
-                gap={"base": "3rem", "xl": "4rem"},
-                align_items="center",
-                width="100%",
+                width={"base": "86vw", "sm": "360px"},
+                height="100vh",
+                padding="1.15rem",
+                bg="rgba(3, 16, 10, 0.96)",
+                border_right=f"1px solid {COLORS['border']}",
+                box_shadow="0 24px 80px rgba(0,0,0,0.45)",
             )
         ),
-        id="top",
-        padding_top={"base": "4rem", "md": "5.5rem"},
-        padding_bottom={"base": "4.5rem", "md": "6rem"},
-        scroll_margin_top="100px",
+        direction="right",
+    )
+
+
+def top_bar() -> rx.Component:
+    return rx.box(
+        _container(
+            rx.hstack(
+                rx.link(
+                    rx.hstack(
+                        app_brand(show_text=False, logo_size="42px"),
+                        rx.vstack(
+                            rx.text(
+                                "App ATS SST",
+                                font_weight="900",
+                                color=COLORS["green_soft"],
+                                letter_spacing="-0.03em",
+                                line_height="1",
+                            ),
+                            rx.text(
+                                "Plataforma web operativa",
+                                color=COLORS["soft"],
+                                size="1",
+                                display={"base": "none", "sm": "block"},
+                            ),
+                            spacing="0",
+                            align="start",
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
+                    href="#top",
+                ),
+                rx.spacer(),
+                rx.link(
+                    rx.button(
+                        "Entrar",
+                        **BUTTON_PRIMARY_STYLE,
+                    ),
+                    href="/login",
+                    display={"base": "none", "sm": "inline-flex"},
+                ),
+                landing_drawer(),
+                width="100%",
+                align="center",
+                spacing="3",
+            )
+        ),
+        position="sticky",
+        top="0",
+        z_index="80",
+        padding_y="0.85rem",
+        bg="rgba(3, 16, 10, 0.86)",
+        backdrop_filter="blur(14px)",
+        border_bottom=f"1px solid {COLORS['border']}",
     )
 
 
@@ -419,11 +340,13 @@ def module_card(icon_tag: str, title: str, text: str, href: str | None = None) -
             font_size="0.96rem",
         ),
         padding={"base": "1.35rem", "md": "1.65rem"},
-        min_height={"base": "auto", "md": "240px"},
+        min_height={"base": "auto", "md": "235px"},
+        width="100%",
         transition="all 180ms ease",
         _hover={
             "transform": "translateY(-4px)",
             "bg": COLORS["card_alt"],
+            "border_color": "rgba(167, 243, 208, 0.38)",
         },
         **CARD_STYLE,
     )
@@ -434,9 +357,61 @@ def module_card(icon_tag: str, title: str, text: str, href: str | None = None) -
     return content
 
 
+def intro_section() -> rx.Component:
+    return rx.box(
+        _container(
+            rx.vstack(
+                rx.badge(
+                    "App web ATS SST",
+                    color_scheme="green",
+                    variant="soft",
+                    radius="full",
+                    padding_x="0.85rem",
+                    padding_y="0.35rem",
+                ),
+                rx.heading(
+                    "Gestión digital del Análisis de Trabajo Seguro.",
+                    size={"base": "8", "md": "9"},
+                    line_height="0.98",
+                    letter_spacing="-0.06em",
+                    text_align="center",
+                    max_width="860px",
+                ),
+                rx.text(
+                    (
+                        "Una plataforma web para centralizar el proceso ATS: registro estructurado, "
+                        "trazabilidad operativa, control documental, generación de PDF y métricas útiles "
+                        "para la gestión SST."
+                    ),
+                    color=COLORS["muted"],
+                    line_height="1.75",
+                    font_size={"base": "1rem", "md": "1.12rem"},
+                    text_align="center",
+                    max_width="780px",
+                ),
+                rx.hstack(
+                    _button_link("Ver módulos", "#modulos", primary=False),
+                    _button_link("Entrar al sistema", "/login", primary=True),
+                    spacing="3",
+                    justify="center",
+                    flex_wrap="wrap",
+                    margin_top="0.8rem",
+                ),
+                width="100%",
+                align="center",
+                spacing="5",
+            )
+        ),
+        id="top",
+        padding_top={"base": "4.5rem", "md": "6rem"},
+        padding_bottom={"base": "4rem", "md": "5.5rem"},
+        scroll_margin_top="100px",
+    )
+
+
 def modules_section() -> rx.Component:
     return rx.box(
-        _main_container(
+        _container(
             rx.vstack(
                 rx.box(
                     rx.text(
@@ -447,57 +422,69 @@ def modules_section() -> rx.Component:
                         font_weight="800",
                         font_size="0.76rem",
                         margin_bottom="0.85rem",
+                        text_align="center",
                     ),
                     rx.heading(
-                        "Una experiencia simple para gestionar el ciclo ATS.",
+                        "Todo el ciclo ATS en una experiencia simple y consistente.",
                         size={"base": "7", "md": "8"},
                         line_height="1.05",
                         letter_spacing="-0.04em",
-                        max_width="780px",
+                        text_align="center",
+                        max_width="820px",
+                        margin_x="auto",
                         margin_bottom="1rem",
                     ),
                     rx.text(
-                        (
-                            "La landing queda más limpia y enfocada: primero explica el valor de la plataforma "
-                            "y luego presenta los módulos que el usuario puede usar dentro del sistema."
-                        ),
+                        "Cada módulo responde a un punto crítico del proceso operativo y documental.",
                         color=COLORS["muted"],
                         line_height="1.7",
-                        max_width="760px",
+                        text_align="center",
+                        max_width="720px",
+                        margin_x="auto",
                     ),
                     width="100%",
                 ),
                 rx.grid(
                     module_card(
                         "clipboard_check",
-                        "Formato ATS",
-                        "Captura la información del análisis de trabajo seguro por fases, con estructura clara para el equipo SISO.",
+                        "Formato ATS por fases",
+                        "Captura datos generales, tareas, peligros, controles, observaciones y cierre.",
                         "/ats/formato",
                     ),
                     module_card(
                         "route",
-                        "Paso, peligro y control",
-                        "Permite relacionar cada actividad con sus peligros y controles aplicados para mejorar la trazabilidad.",
+                        "Matriz paso-peligro-control",
+                        "Relaciona cada paso de la actividad con sus peligros y medidas de control aplicadas.",
+                    ),
+                    module_card(
+                        "users",
+                        "Trabajadores y firmas",
+                        "Integra el catálogo de personal, snapshot histórico y firma operativa como evidencia.",
                     ),
                     module_card(
                         "file_text",
                         "Documentos PDF",
-                        "Consulta, genera y descarga documentos ATS con historial y control documental.",
+                        "Permite búsqueda, generación, descarga y control del historial de versiones.",
                         "/ats/documentos",
                     ),
                     module_card(
                         "layout_dashboard",
                         "Dashboard administrativo",
-                        "Visualiza métricas para seguimiento gerencial, control por estado y análisis de riesgos.",
+                        "Centraliza KPIs y analítica por estado, tipo de riesgo, usuario y periodos.",
                         "/admin/dashboard",
                     ),
-                    columns={"base": "1", "md": "2"},
+                    module_card(
+                        "shield",
+                        "Control por roles",
+                        "ADMIN visualiza toda la operación; SISO trabaja sobre sus ATS autorizados.",
+                    ),
+                    columns={"base": "1", "md": "2", "xl": "3"},
                     gap={"base": "1rem", "md": "1.35rem", "xl": "1.5rem"},
                     width="100%",
                 ),
-                spacing="7",
                 width="100%",
                 align="stretch",
+                spacing="7",
             )
         ),
         id="modulos",
@@ -511,7 +498,7 @@ def modules_section() -> rx.Component:
 
 def footer() -> rx.Component:
     return rx.box(
-        _main_container(
+        _container(
             rx.hstack(
                 rx.text(
                     f"(c) {datetime.now().year} App ATS SST",
@@ -536,20 +523,10 @@ def footer() -> rx.Component:
 
 def landing_page() -> rx.Component:
     return rx.box(
-        mobile_nav(),
-        rx.hstack(
-            landing_sidebar(),
-            rx.box(
-                hero_section(),
-                modules_section(),
-                footer(),
-                width="100%",
-                min_width="0",
-            ),
-            align="start",
-            spacing="0",
-            width="100%",
-        ),
+        top_bar(),
+        intro_section(),
+        modules_section(),
+        footer(),
         **PAGE_STYLE,
         custom_attrs={"style": "scroll-behavior: smooth;"},
     )
