@@ -61,7 +61,7 @@ def ats_documentos_page() -> rx.Component:
                         min_width="0",
                         flex="1",
                     ),
-                    direction={"base": "column", "md": "row"},
+                    direction="column",
                     gap="1rem",
                     width="100%",
                     min_width="0",
