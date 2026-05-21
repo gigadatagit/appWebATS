@@ -27,7 +27,8 @@ COLORS = {
 
 SECTION_STYLE = {
     "width": "100%",
-    "padding_y": {"base": "4.5rem", "md": "6.25rem"},
+    "padding_top": {"base": "4.8rem", "md": "6.6rem"},
+    "padding_bottom": {"base": "5rem", "md": "6.6rem"},
 }
 
 CARD_STYLE = {
@@ -110,11 +111,20 @@ def _container(*children: rx.Component) -> rx.Component:
 
 def section_shell(*children: rx.Component, section_id: str, tone: str = "base") -> rx.Component:
     return rx.box(
-        _container(*children),
+        _container(
+            rx.cond(
+                tone != "base",
+                rx.box(
+                    width="100%",
+                    height="1px",
+                    bg=COLORS["border_soft"],
+                    margin_bottom={"base": "2rem", "md": "2.7rem"},
+                ),
+            ),
+            *children,
+        ),
         id=section_id,
         bg=SECTION_TONES[tone],
-        border_top=f"1px solid {COLORS['border_soft']}" if tone != "base" else "none",
-        border_bottom=f"1px solid {COLORS['border_soft']}" if tone == "panel" else "none",
         **SECTION_STYLE,
     )
 
@@ -399,32 +409,18 @@ def _dashboard_mockup() -> rx.Component:
 
 
 def landing_navbar() -> rx.Component:
-    desktop_links = rx.hstack(
-        rx.link("Reto", href="#reto", color=COLORS["muted"], _hover={"color": COLORS["green_soft"]}),
-        rx.link("Plataforma", href="#plataforma", color=COLORS["muted"], _hover={"color": COLORS["green_soft"]}),
-        rx.link("Modulos", href="#modulos", color=COLORS["muted"], _hover={"color": COLORS["green_soft"]}),
-        rx.link("Metricas", href="#metricas", color=COLORS["muted"], _hover={"color": COLORS["green_soft"]}),
-        rx.link("Roles", href="#roles", color=COLORS["muted"], _hover={"color": COLORS["green_soft"]}),
-        spacing="4",
-        display={"base": "none", "md": "flex"},
-        align="center",
-        font_size="0.92rem",
-    )
-
-    mobile_links = rx.hstack(
-        rx.link("Reto", href="#reto"),
-        rx.link("Plataforma", href="#plataforma"),
-        rx.link("Modulos", href="#modulos"),
-        rx.link("Metricas", href="#metricas"),
-        rx.link("Roles", href="#roles"),
-        display={"base": "flex", "md": "none"},
+    menu_links = rx.hstack(
+        rx.link("Reto", href="#reto", color=COLORS["green_soft"], _hover={"color": COLORS["green_neon"]}),
+        rx.link("Plataforma", href="#plataforma", color=COLORS["green_soft"], _hover={"color": COLORS["green_neon"]}),
+        rx.link("Modulos", href="#modulos", color=COLORS["green_soft"], _hover={"color": COLORS["green_neon"]}),
+        rx.link("Metricas", href="#metricas", color=COLORS["green_soft"], _hover={"color": COLORS["green_neon"]}),
+        rx.link("Roles", href="#roles", color=COLORS["green_soft"], _hover={"color": COLORS["green_neon"]}),
         width="100%",
         overflow_x="auto",
         white_space="nowrap",
         spacing="3",
-        padding_bottom="0.35rem",
-        color=COLORS["muted"],
-        font_size="0.88rem",
+        font_size="0.9rem",
+        font_weight="600",
     )
 
     return rx.box(
@@ -445,7 +441,6 @@ def landing_navbar() -> rx.Component:
                         ),
                         href="#top",
                     ),
-                    desktop_links,
                     rx.hstack(
                         rx.link(
                             rx.button("Ver modulos", **BUTTON_SECONDARY_STYLE),
@@ -461,8 +456,8 @@ def landing_navbar() -> rx.Component:
                     justify="between",
                     spacing="4",
                 ),
-                mobile_links,
-                spacing="2",
+                menu_links,
+                spacing="3",
                 width="100%",
                 align="stretch",
             )
@@ -492,11 +487,11 @@ def hero_section() -> rx.Component:
     trust_row = rx.grid(
         _mini_stat("Control por roles", "ADMIN / SISO"),
         _mini_stat("Flujo ATS", "7 fases"),
-        _mini_stat("Documentacion", "PDF + historial"),
-        columns={"base": "1", "md": "3"},
+        columns={"base": "1", "md": "2"},
         spacing="3",
         width="100%",
         margin_top="1.6rem",
+        max_width="560px",
     )
 
     return rx.box(
