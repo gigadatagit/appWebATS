@@ -118,7 +118,7 @@ def section_shell(*children: rx.Component, section_id: str, tone: str = "base") 
                     width="100%",
                     height="1px",
                     bg=COLORS["border_soft"],
-                    margin_bottom={"base": "2rem", "md": "2.7rem"},
+                    margin_bottom={"base": "2.8rem", "md": "3.5rem"},
                 ),
             ),
             *children,
@@ -409,16 +409,32 @@ def _dashboard_mockup() -> rx.Component:
 
 
 def landing_navbar() -> rx.Component:
-    menu_links = rx.hstack(
+    desktop_links = rx.hstack(
         rx.link("Reto", href="#reto", color=COLORS["green_soft"], _hover={"color": COLORS["green_neon"]}),
         rx.link("Plataforma", href="#plataforma", color=COLORS["green_soft"], _hover={"color": COLORS["green_neon"]}),
         rx.link("Modulos", href="#modulos", color=COLORS["green_soft"], _hover={"color": COLORS["green_neon"]}),
         rx.link("Metricas", href="#metricas", color=COLORS["green_soft"], _hover={"color": COLORS["green_neon"]}),
         rx.link("Roles", href="#roles", color=COLORS["green_soft"], _hover={"color": COLORS["green_neon"]}),
+        spacing="4",
+        display={"base": "none", "md": "flex"},
+        align="center",
+        font_size="0.92rem",
+        font_weight="600",
+    )
+
+    mobile_links = rx.hstack(
+        rx.link("Reto", href="#reto"),
+        rx.link("Plataforma", href="#plataforma"),
+        rx.link("Modulos", href="#modulos"),
+        rx.link("Metricas", href="#metricas"),
+        rx.link("Roles", href="#roles"),
+        display={"base": "flex", "md": "none"},
         width="100%",
         overflow_x="auto",
         white_space="nowrap",
         spacing="3",
+        padding_bottom="0.35rem",
+        color=COLORS["green_soft"],
         font_size="0.9rem",
         font_weight="600",
     )
@@ -441,6 +457,7 @@ def landing_navbar() -> rx.Component:
                         ),
                         href="#top",
                     ),
+                    desktop_links,
                     rx.hstack(
                         rx.link(
                             rx.button("Ver modulos", **BUTTON_SECONDARY_STYLE),
@@ -456,7 +473,7 @@ def landing_navbar() -> rx.Component:
                     justify="between",
                     spacing="4",
                 ),
-                menu_links,
+                mobile_links,
                 spacing="3",
                 width="100%",
                 align="stretch",
@@ -491,6 +508,7 @@ def hero_section() -> rx.Component:
         spacing="3",
         width="100%",
         margin_top="1.6rem",
+        margin_bottom={"base": "2.4rem", "md": "3.2rem"},
         max_width="560px",
     )
 
@@ -548,7 +566,8 @@ def hero_section() -> rx.Component:
             )
         ),
         id="top",
-        padding_y={"base": "3.2rem", "md": "4.8rem"},
+        padding_top={"base": "3.2rem", "md": "4.8rem"},
+        padding_bottom={"base": "4.8rem", "md": "6.5rem"},
         width="100%",
     )
 
