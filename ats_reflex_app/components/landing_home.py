@@ -6,6 +6,7 @@ import reflex as rx
 
 from .brand import app_brand
 
+
 COLORS = {
     "bg_deep": "#020d08",
     "bg_base": "#04130c",
@@ -25,21 +26,37 @@ COLORS = {
     "lime": "#c6f86d",
 }
 
+
+SPACING = {
+    # Espacio vertical interno de cada seccion.
+    "section_padding_y": {"base": "4.5rem", "md": "6.8rem"},
+
+    # Margen externo entre secciones.
+    "section_margin_y": {"base": "0.75rem", "md": "1.25rem"},
+
+    # Separacion entre encabezado, grids y bloques internos.
+    "section_content_gap": {"base": "2.25rem", "md": "3rem"},
+
+    # Separacion entre cards dentro de grids.
+    "grid_gap": {"base": "1rem", "md": "1.35rem", "xl": "1.5rem"},
+
+    # Padding interno reutilizable.
+    "card_padding": {"base": "1.35rem", "md": "1.65rem"},
+    "panel_padding": {"base": "1.25rem", "md": "1.75rem"},
+}
+
+
 SECTION_STYLE = {
-    #"width": "100%",
-    #"padding_top": {"base": "4.8rem", "md": "6.6rem"},
-    #"padding_bottom": {"base": "5rem", "md": "6.6rem"},
     "width": "100%",
-    "padding_top": {"base": "4.8rem", "md": "6.6rem"},
-    "padding_bottom": {"base": "5rem", "md": "6.6rem"},
+    "padding_top": SPACING["section_padding_y"],
+    "padding_bottom": SPACING["section_padding_y"],
+    "margin_top": SPACING["section_margin_y"],
+    "margin_bottom": SPACING["section_margin_y"],
 
-    # Margen externo para separar visualmente las secciones
-    "margin_top": {"base": "1.25rem", "md": "2rem"},
-    "margin_bottom": {"base": "1.25rem", "md": "2rem"},
-
-    # Evita que el navbar sticky tape el título al navegar por anclas
+    # Evita que el navbar sticky tape los titulos al navegar por anclas.
     "scroll_margin_top": {"base": "96px", "md": "110px"},
 }
+
 
 CARD_STYLE = {
     "bg": COLORS["card"],
@@ -54,6 +71,7 @@ CARD_STYLE = {
         "border_color": "rgba(167, 243, 208, 0.38)",
     },
 }
+
 
 BUTTON_PRIMARY_STYLE = {
     "bg": f"linear-gradient(135deg, {COLORS['green_neon']}, {COLORS['green']})",
@@ -70,6 +88,7 @@ BUTTON_PRIMARY_STYLE = {
     },
     "_active": {"transform": "translateY(1px)"},
 }
+
 
 BUTTON_SECONDARY_STYLE = {
     "bg": "rgba(255, 255, 255, 0.07)",
@@ -88,6 +107,7 @@ BUTTON_SECONDARY_STYLE = {
     "_active": {"transform": "translateY(1px)"},
 }
 
+
 PAGE_BG_STYLE = {
     "min_height": "100vh",
     "color": COLORS["text"],
@@ -98,6 +118,7 @@ PAGE_BG_STYLE = {
         "linear-gradient(155deg, #020d08 0%, #07190f 45%, #0b2619 100%)"
     ),
 }
+
 
 SECTION_TONES = {
     "base": "transparent",
@@ -120,18 +141,25 @@ def _container(*children: rx.Component) -> rx.Component:
 
 
 def section_shell(*children: rx.Component, section_id: str, tone: str = "base") -> rx.Component:
+    divider = (
+        rx.fragment()
+        if tone == "base"
+        else rx.box(
+            width="100%",
+            height="1px",
+            bg=COLORS["border_soft"],
+        )
+    )
+
     return rx.box(
         _container(
-            rx.cond(
-                tone != "base",
-                rx.box(
-                    width="100%",
-                    height="1px",
-                    bg=COLORS["border_soft"],
-                    margin_bottom={"base": "2.8rem", "md": "3.5rem"},
-                ),
+            rx.vstack(
+                divider,
+                *children,
+                width="100%",
+                align="stretch",
+                gap=SPACING["section_content_gap"],
             ),
-            *children,
         ),
         id=section_id,
         bg=SECTION_TONES[tone],
@@ -168,7 +196,7 @@ def section_heading(kicker: str, title: str, text: str, centered: bool = False) 
             margin_x="auto" if centered else "0",
         ),
         width="100%",
-        margin_bottom="2rem",
+        margin_bottom="0",
         text_align="center" if centered else "left",
     )
 
@@ -199,11 +227,21 @@ def feature_card(icon_tag: str, title: str, copy: str, route_hint: str = "") -> 
             border=f"1px solid {COLORS['border']}",
             margin_bottom="1rem",
         ),
-        rx.heading(title, size="5", margin_bottom="0.55rem", letter_spacing="-0.02em"),
-        rx.text(copy, color=COLORS["muted"], line_height="1.58", font_size="0.95rem"),
-        rx.cond(route_hint != "", route_pill(route_hint, margin_top="0.9rem")),
-        padding="1.4rem",
-        min_height="220px",
+        rx.heading(
+            title,
+            size="5",
+            margin_bottom="0.65rem",
+            letter_spacing="-0.02em",
+        ),
+        rx.text(
+            copy,
+            color=COLORS["muted"],
+            line_height="1.65",
+            font_size="0.95rem",
+        ),
+        rx.cond(route_hint != "", route_pill(route_hint, margin_top="1rem")),
+        padding=SPACING["card_padding"],
+        min_height={"base": "auto", "md": "235px"},
         width="100%",
         **CARD_STYLE,
     )
@@ -216,10 +254,15 @@ def metric_card(value: str, label: str) -> rx.Component:
             size="8",
             color=COLORS["green_soft"],
             letter_spacing="-0.05em",
-            margin_bottom="0.35rem",
+            margin_bottom="0.45rem",
         ),
-        rx.text(label, color=COLORS["muted"], line_height="1.45", size="2"),
-        padding="1.2rem",
+        rx.text(
+            label,
+            color=COLORS["muted"],
+            line_height="1.5",
+            size="2",
+        ),
+        padding=SPACING["card_padding"],
         border_radius="22px",
         bg="rgba(255,255,255,0.075)",
         border=f"1px solid {COLORS['border']}",
@@ -243,25 +286,30 @@ def role_card(role_name: str, summary: str, points: list[str]) -> rx.Component:
             rx.heading(role_name, size="6", color=COLORS["green_soft"]),
             spacing="3",
             align="center",
-            margin_bottom="0.7rem",
+            margin_bottom="0.8rem",
         ),
-        rx.text(summary, color=COLORS["muted"], line_height="1.58", margin_bottom="1rem"),
+        rx.text(
+            summary,
+            color=COLORS["muted"],
+            line_height="1.62",
+            margin_bottom="1.1rem",
+        ),
         rx.vstack(
             *[
                 rx.hstack(
                     rx.icon(tag="badge_check", size=16, color=COLORS["green_soft"]),
-                    rx.text(point, color=COLORS["muted"], size="2"),
+                    rx.text(point, color=COLORS["muted"], size="2", line_height="1.45"),
                     spacing="2",
                     align="start",
                     width="100%",
                 )
                 for point in points
             ],
-            spacing="2",
+            spacing="3",
             align="stretch",
             width="100%",
         ),
-        padding={"base": "1.2rem", "md": "1.5rem"},
+        padding={"base": "1.35rem", "md": "1.75rem"},
         border_radius="28px",
         bg="rgba(255,255,255,0.07)",
         border=f"1px solid {COLORS['border']}",
@@ -310,7 +358,7 @@ def _mini_stat(title: str, value: str) -> rx.Component:
     return rx.box(
         rx.text(title, color=COLORS["soft"], size="1"),
         rx.heading(value, size="5", color=COLORS["green_soft"], margin_top="0.2rem"),
-        padding="0.85rem",
+        padding="0.95rem",
         border_radius="16px",
         bg="rgba(255,255,255,0.055)",
         border=f"1px solid {COLORS['border']}",
@@ -341,7 +389,7 @@ def _dashboard_mockup() -> rx.Component:
                     _mini_stat("Alto riesgo", "27%"),
                     _mini_stat("PDF versionados", "362"),
                     columns={"base": "1", "sm": "3"},
-                    spacing="2",
+                    gap="0.75rem",
                     width="100%",
                 ),
                 rx.box(
@@ -365,7 +413,7 @@ def _dashboard_mockup() -> rx.Component:
                         border_radius="999px",
                         bg="rgba(255,255,255,0.12)",
                     ),
-                    padding="0.9rem",
+                    padding="1rem",
                     border_radius="16px",
                     bg="rgba(255,255,255,0.055)",
                     border=f"1px solid {COLORS['border']}",
@@ -391,13 +439,13 @@ def _dashboard_mockup() -> rx.Component:
                         justify="between",
                     ),
                     spacing="2",
-                    padding="0.9rem",
+                    padding="1rem",
                     border_radius="16px",
                     bg="rgba(255,255,255,0.055)",
                     border=f"1px solid {COLORS['border']}",
                     width="100%",
                 ),
-                spacing="2",
+                spacing="3",
                 width="100%",
                 padding="1rem",
             ),
@@ -432,61 +480,50 @@ def landing_navbar() -> rx.Component:
         font_weight="600",
     )
 
-    mobile_links = rx.hstack(
-        rx.link("Reto", href="#reto"),
-        rx.link("Plataforma", href="#plataforma"),
-        rx.link("Modulos", href="#modulos"),
-        rx.link("Metricas", href="#metricas"),
-        rx.link("Roles", href="#roles"),
-        display={"base": "flex", "md": "none"},
-        width="100%",
-        overflow_x="auto",
-        white_space="nowrap",
-        spacing="3",
-        padding_bottom="0.35rem",
-        color=COLORS["green_soft"],
-        font_size="0.9rem",
-        font_weight="600",
-    )
-
     return rx.box(
         _container(
-            rx.vstack(
-                rx.hstack(
-                    rx.link(
-                        rx.hstack(
-                            app_brand(show_text=False, logo_size="44px"),
-                            rx.vstack(
-                                rx.text("App ATS SST", font_weight="800", letter_spacing="-0.03em", line_height="1.0"),
-                                rx.text("Plataforma web operativa", color=COLORS["soft"], size="1"),
-                                spacing="0",
-                                align="start",
-                            ),
-                            spacing="2",
-                            align="center",
-                        ),
-                        href="#top",
-                    ),
-                    desktop_links,
+            rx.hstack(
+                rx.link(
                     rx.hstack(
-                        rx.link(
-                            rx.button("Ver modulos", **BUTTON_SECONDARY_STYLE),
-                            href="#modulos",
-                            display={"base": "none", "sm": "inline"},
+                        app_brand(show_text=False, logo_size="44px"),
+                        rx.vstack(
+                            rx.text(
+                                "App ATS SST",
+                                font_weight="800",
+                                letter_spacing="-0.03em",
+                                line_height="1.0",
+                            ),
+                            rx.text(
+                                "Plataforma web operativa",
+                                color=COLORS["soft"],
+                                size="1",
+                            ),
+                            spacing="0",
+                            align="start",
                         ),
-                        rx.link(rx.button("Entrar al sistema", **BUTTON_PRIMARY_STYLE), href="/login"),
                         spacing="2",
                         align="center",
                     ),
-                    width="100%",
-                    align="center",
-                    justify="between",
-                    spacing="4",
+                    href="#top",
                 ),
-                mobile_links,
-                spacing="3",
+                desktop_links,
+                rx.hstack(
+                    rx.link(
+                        rx.button("Ver modulos", **BUTTON_SECONDARY_STYLE),
+                        href="#modulos",
+                        display={"base": "none", "sm": "inline"},
+                    ),
+                    rx.link(
+                        rx.button("Entrar al sistema", **BUTTON_PRIMARY_STYLE),
+                        href="/login",
+                    ),
+                    spacing="2",
+                    align="center",
+                ),
                 width="100%",
-                align="stretch",
+                align="center",
+                justify="between",
+                spacing="4",
             )
         ),
         position="sticky",
@@ -506,19 +543,19 @@ def hero_section() -> rx.Component:
         _hero_bullet("Genera PDF versionados y evidencia operativa."),
         _hero_bullet("Mide gestion SST por rol, estado y periodo."),
         columns={"base": "1", "sm": "2"},
-        spacing="2",
+        gap={"base": "0.85rem", "md": "1rem"},
         width="100%",
-        margin_top="1.2rem",
+        margin_top="1.35rem",
     )
 
     trust_row = rx.grid(
         _mini_stat("Control por roles", "ADMIN / SISO"),
         _mini_stat("Flujo ATS", "7 fases"),
         columns={"base": "1", "md": "2"},
-        spacing="3",
+        gap="1rem",
         width="100%",
-        margin_top="1.6rem",
-        margin_bottom={"base": "2.4rem", "md": "3.2rem"},
+        margin_top="1.75rem",
+        margin_bottom={"base": "2.6rem", "md": "3.3rem"},
         max_width="560px",
     )
 
@@ -537,14 +574,14 @@ def hero_section() -> rx.Component:
                         border_radius="999px",
                         padding="0.5rem 0.85rem",
                         width="fit-content",
-                        margin_bottom="1.25rem",
+                        margin_bottom="1.35rem",
                     ),
                     rx.heading(
                         "Controla el ATS con trazabilidad real, PDF versionado y metricas utiles.",
                         size={"base": "8", "md": "9"},
                         line_height="0.96",
                         letter_spacing="-0.06em",
-                        margin_bottom="0.95rem",
+                        margin_bottom="1.05rem",
                         max_width="780px",
                     ),
                     rx.text(
@@ -553,7 +590,7 @@ def hero_section() -> rx.Component:
                             "documentacion auditable, seguimiento por roles y dashboard para decisiones claras."
                         ),
                         color=COLORS["muted"],
-                        line_height="1.68",
+                        line_height="1.72",
                         font_size={"base": "1rem", "md": "1.1rem"},
                         max_width="760px",
                     ),
@@ -564,21 +601,21 @@ def hero_section() -> rx.Component:
                         spacing="3",
                         width="100%",
                         flex_wrap="wrap",
-                        margin_top="1.6rem",
+                        margin_top="1.75rem",
                     ),
                     trust_row,
                     width="100%",
                 ),
                 _dashboard_mockup(),
                 columns={"base": "1", "lg": "2"},
-                spacing={"base": "6", "lg": "8"},
+                spacing={"base": "7", "lg": "9"},
                 align_items="center",
             )
         ),
         id="top",
-        padding_top={"base": "3.2rem", "md": "4.8rem"},
-        padding_bottom={"base": "4.8rem", "md": "6.5rem"},
-        margin_bottom={"base": "1.25rem", "md": "2rem"},
+        padding_top={"base": "3.6rem", "md": "5.2rem"},
+        padding_bottom={"base": "5.2rem", "md": "7rem"},
+        margin_bottom=SPACING["section_margin_y"],
         width="100%",
     )
 
@@ -610,7 +647,7 @@ def challenge_section() -> rx.Component:
                 "Sin metricas, la direccion no ve avance real por equipo, periodo o riesgo.",
             ),
             columns={"base": "1", "md": "2", "xl": "3"},
-            spacing="4",
+            gap=SPACING["grid_gap"],
             width="100%",
         ),
         section_id="reto",
@@ -635,8 +672,8 @@ def platform_section() -> rx.Component:
                     flex_shrink="0",
                 ),
                 rx.box(
-                    rx.heading(title, size="4", margin_bottom="0.25rem"),
-                    rx.text(desc, size="2", color=COLORS["soft"], line_height="1.45"),
+                    rx.heading(title, size="4", margin_bottom="0.3rem"),
+                    rx.text(desc, size="2", color=COLORS["soft"], line_height="1.5"),
                     width="100%",
                 ),
                 route_pill(route),
@@ -645,7 +682,7 @@ def platform_section() -> rx.Component:
                 spacing="3",
                 flex_wrap={"base": "wrap", "sm": "nowrap"},
             ),
-            padding="1rem",
+            padding={"base": "1rem", "md": "1.15rem"},
             border_radius="20px",
             bg="rgba(255,255,255,0.06)",
             border=f"1px solid {COLORS['border']}",
@@ -668,10 +705,10 @@ def platform_section() -> rx.Component:
                     _hero_bullet("Formulario ATS por fases con datos y firmas."),
                     _hero_bullet("Catalogos para estandarizar tipos, peligros y controles."),
                     _hero_bullet("PDF con versionado, trazabilidad y consulta centralizada."),
-                    spacing="2",
+                    spacing="3",
                     width="100%",
                 ),
-                padding="1.5rem",
+                padding=SPACING["panel_padding"],
                 border_radius="24px",
                 bg="rgba(3, 16, 10, 0.55)",
                 border=f"1px solid {COLORS['border']}",
@@ -686,10 +723,10 @@ def platform_section() -> rx.Component:
                 width="100%",
             ),
             columns={"base": "1", "xl": "2"},
-            spacing="4",
+            gap={"base": "1.25rem", "md": "1.75rem"},
             align_items="stretch",
             width="100%",
-            padding={"base": "1rem", "md": "1.5rem"},
+            padding={"base": "1.25rem", "md": "2rem"},
             border_radius="32px",
             bg="linear-gradient(145deg, rgba(22, 199, 132, 0.12), rgba(255,255,255,0.045))",
             border=f"1px solid {COLORS['border']}",
@@ -745,7 +782,7 @@ def modules_section() -> rx.Component:
                 "ADMIN / SISO",
             ),
             columns={"base": "1", "md": "2", "xl": "3"},
-            spacing="4",
+            gap=SPACING["grid_gap"],
             width="100%",
         ),
         section_id="modulos",
@@ -769,7 +806,7 @@ def metrics_section() -> rx.Component:
             metric_card("2", "Roles para separar operacion y administracion."),
             metric_card("1", "Fuente unificada de ATS, PDF y firmas."),
             columns={"base": "1", "sm": "2", "xl": "4"},
-            spacing="4",
+            gap=SPACING["grid_gap"],
             width="100%",
         ),
         rx.grid(
@@ -789,9 +826,8 @@ def metrics_section() -> rx.Component:
                 "Monitorea evolucion operativa para intervencion temprana.",
             ),
             columns={"base": "1", "md": "3"},
-            spacing="4",
+            gap=SPACING["grid_gap"],
             width="100%",
-            margin_top="1rem",
         ),
         section_id="metricas",
         tone="soft",
@@ -825,7 +861,7 @@ def roles_section() -> rx.Component:
                 ],
             ),
             columns={"base": "1", "md": "2"},
-            spacing="4",
+            gap=SPACING["grid_gap"],
             width="100%",
         ),
         section_id="roles",
@@ -854,6 +890,7 @@ def cta_section() -> rx.Component:
                     flex_wrap="wrap",
                     justify="center",
                     width="100%",
+                    margin_top="2rem",
                 ),
                 rx.hstack(
                     route_pill("Trazabilidad"),
@@ -863,11 +900,11 @@ def cta_section() -> rx.Component:
                     spacing="2",
                     flex_wrap="wrap",
                     justify="center",
-                    margin_top="1.15rem",
+                    margin_top="1.25rem",
                     width="100%",
                 ),
                 width="100%",
-                padding={"base": "2rem 1rem", "md": "4rem 1.8rem"},
+                padding={"base": "2.5rem 1.25rem", "md": "4.5rem 2.25rem"},
                 border_radius="40px",
                 bg=(
                     "radial-gradient(circle at 50% 0%, rgba(57, 255, 156, 0.25), transparent 46%), "
@@ -878,9 +915,9 @@ def cta_section() -> rx.Component:
             )
         ),
         id="login",
-        padding_y={"base": "4.2rem", "md": "5.4rem"},
-        margin_top={"base": "1.25rem", "md": "2rem"},
-        margin_bottom={"base": "1.25rem", "md": "2rem"},
+        padding_y={"base": "4.5rem", "md": "5.8rem"},
+        margin_top=SPACING["section_margin_y"],
+        margin_bottom=SPACING["section_margin_y"],
         width="100%",
     )
 
@@ -923,7 +960,7 @@ def landing_footer() -> rx.Component:
             )
         ),
         border_top=f"1px solid {COLORS['border']}",
-        padding_y="1.5rem",
+        padding_y="1.75rem",
         width="100%",
         bg="rgba(0, 0, 0, 0.15)",
     )
