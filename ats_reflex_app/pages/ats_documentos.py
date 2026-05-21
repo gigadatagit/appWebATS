@@ -24,31 +24,48 @@ def ats_documentos_page() -> rx.Component:
                 "Genera un PDF del ATS seleccionado y registra el resultado en el historial de documentos.",
                 color="#64748b",
             ),
-            rx.box(
-                rx.input(
-                    placeholder="Buscar ATS por fecha, numero/codigo o empresa/persona (minimo 2 caracteres)",
-                    value=AtsFormState.documento_search_query,
-                    on_change=AtsFormState.set_documento_search_query,
-                    **INPUT_STYLE,
-                ),
-                rx.select.root(
-                    rx.select.trigger(placeholder="Selecciona un ATS", **SELECT_TRIGGER_STYLE),
-                    rx.select.content(
-                        rx.foreach(
-                            AtsFormState.documentos_ats_options,
-                            lambda item: rx.select.item(
-                                item["label"],
-                                value=item["id_str"],
+            rx.vstack(
+                rx.flex(
+                    rx.box(
+                        rx.input(
+                            placeholder="Buscar ATS por fecha, numero/codigo o empresa/persona (minimo 2 caracteres)",
+                            value=AtsFormState.documento_search_query,
+                            on_change=AtsFormState.set_documento_search_query,
+                            **INPUT_STYLE,
+                        ),
+                        width="100%",
+                        min_width="0",
+                        flex="1",
+                    ),
+                    rx.box(
+                        rx.select.root(
+                            rx.select.trigger(placeholder="Selecciona un ATS", **SELECT_TRIGGER_STYLE),
+                            rx.select.content(
+                                rx.foreach(
+                                    AtsFormState.documentos_ats_options,
+                                    lambda item: rx.select.item(
+                                        item["label"],
+                                        value=item["id_str"],
+                                    ),
+                                )
                             ),
-                        )
+                            value=rx.cond(
+                                AtsFormState.documento_selected_ats_id > 0,
+                                AtsFormState.documento_selected_ats_id.to_string(),
+                                "",
+                            ),
+                            on_change=AtsFormState.set_documento_selected_ats_id_from_select,
+                            width="100%",
+                        ),
+                        width="100%",
+                        min_width="0",
+                        flex="1",
                     ),
-                    value=rx.cond(
-                        AtsFormState.documento_selected_ats_id > 0,
-                        AtsFormState.documento_selected_ats_id.to_string(),
-                        "",
-                    ),
-                    on_change=AtsFormState.set_documento_selected_ats_id_from_select,
+                    direction={"base": "column", "md": "row"},
+                    gap="1rem",
                     width="100%",
+                    min_width="0",
+                    align="stretch",
                 ),
                 rx.hstack(
                     rx.button(
@@ -95,6 +112,7 @@ def ats_documentos_page() -> rx.Component:
                 display="grid",
                 gap="1rem",
                 width="100%",
+                min_width="0",
             ),
             **CARD_STYLE,
             width="100%",
@@ -136,8 +154,10 @@ def ats_documentos_page() -> rx.Component:
                         )
                     ),
                     width="100%",
+                    min_width="680px",
                 ),
-                min_width="680px",
+                width="100%",
+                min_width="0",
                 **TABLE_SCROLL_STYLE,
             ),
             **CARD_STYLE,
@@ -167,8 +187,10 @@ def ats_documentos_page() -> rx.Component:
                         )
                     ),
                     width="100%",
+                    min_width="640px",
                 ),
-                min_width="640px",
+                width="100%",
+                min_width="0",
                 **TABLE_SCROLL_STYLE,
             ),
             **CARD_STYLE,

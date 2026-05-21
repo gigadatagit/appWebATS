@@ -24,9 +24,9 @@ def login_page() -> rx.Component:
                     width="100%",
                 ),
                 rx.vstack(
-                    rx.heading("Iniciar sesion", align="center", text_align="center", **PAGE_TITLE_STYLE),
+                    rx.heading("Iniciar sesión", align="center", text_align="center", **PAGE_TITLE_STYLE),
                     rx.text(
-                        "Ingresa tu correo y contrasena para continuar con el flujo ATS.",
+                        "Ingresa tu correo y contraseña para continuar con el flujo ATS.",
                         text_align="center",
                         **PAGE_SUBTITLE_STYLE,
                     ),
@@ -47,9 +47,9 @@ def login_page() -> rx.Component:
                     align="start",
                 ),
                 rx.vstack(
-                    rx.text("Contrasena", size="2", font_weight="600", color="#0f172a"),
+                    rx.text("Contraseña", size="2", font_weight="600", color="#0f172a"),
                     rx.input(
-                        placeholder="Ingresa tu contrasena",
+                        placeholder="Ingresa tu contraseña",
                         type="password",
                         value=SessionState.password,
                         on_change=SessionState.set_password,
@@ -73,7 +73,7 @@ def login_page() -> rx.Component:
                 rx.button(
                     rx.hstack(
                         rx.icon(tag="log_in", size=15),
-                        rx.text("Iniciar sesion"),
+                        rx.text("Iniciar sesión"),
                         spacing="2",
                         align="center",
                     ),
@@ -89,6 +89,7 @@ def login_page() -> rx.Component:
             width="100%",
             max_width="430px",
         ),
+        width="100%",
         padding="1rem",
         **BASE_PAGE_STYLE,
     )
