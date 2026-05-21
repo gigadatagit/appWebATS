@@ -443,7 +443,7 @@ def hero_section() -> rx.Component:
                 ),
                 visual,
                 columns={"base": "1", "lg": "2"},
-                spacing={"base": "1.8rem", "lg": "3rem"},
+                spacing={"base": "6", "lg": "8"},
                 align_items="center",
             )
         ),
