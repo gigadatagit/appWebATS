@@ -24,6 +24,27 @@ COLORS = {
 }
 
 
+def bp(
+    initial: str,
+    sm: str | None = None,
+    md: str | None = None,
+    lg: str | None = None,
+    xl: str | None = None,
+):
+    values = {"initial": initial}
+
+    if sm is not None:
+        values["sm"] = sm
+    if md is not None:
+        values["md"] = md
+    if lg is not None:
+        values["lg"] = lg
+    if xl is not None:
+        values["xl"] = xl
+
+    return rx.breakpoints(**values)
+
+
 PAGE_STYLE = {
     "min_height": "100vh",
     "color": COLORS["text"],
@@ -81,9 +102,9 @@ def _container(*children: rx.Component) -> rx.Component:
     return rx.box(
         *children,
         width="100%",
-        max_width="1120px",
+        max_width="1180px",
         margin_x="auto",
-        padding_x={"base": "1rem", "sm": "1.25rem", "lg": "2rem"},
+        padding_x=bp("1.15rem", sm="1.5rem", lg="2rem"),
     )
 
 
@@ -99,6 +120,8 @@ def _button_link(label: str, href: str, primary: bool = True) -> rx.Component:
             **(BUTTON_PRIMARY_STYLE if primary else BUTTON_SECONDARY_STYLE),
         ),
         href=href,
+        text_decoration="none",
+        _hover={"text_decoration": "none"},
     )
 
 
@@ -153,6 +176,8 @@ def drawer_link(label: str, href: str, icon_tag: str, primary: bool = False) -> 
             ),
             href=href,
             width="100%",
+            text_decoration="none",
+            _hover={"text_decoration": "none"},
         )
     )
 
@@ -248,7 +273,7 @@ def landing_drawer() -> rx.Component:
                     align="stretch",
                     spacing="4",
                 ),
-                width={"base": "86vw", "sm": "360px"},
+                width=bp("86vw", sm="360px"),
                 height="100vh",
                 padding="1.15rem",
                 bg="rgba(3, 16, 10, 0.96)",
@@ -279,7 +304,7 @@ def top_bar() -> rx.Component:
                                 "Plataforma web operativa",
                                 color=COLORS["soft"],
                                 size="1",
-                                display={"base": "none", "sm": "block"},
+                                display=bp("none", sm="block"),
                             ),
                             spacing="0",
                             align="start",
@@ -288,6 +313,8 @@ def top_bar() -> rx.Component:
                         align="center",
                     ),
                     href="#top",
+                    text_decoration="none",
+                    _hover={"text_decoration": "none"},
                 ),
                 rx.spacer(),
                 landing_drawer(),
@@ -310,29 +337,31 @@ def module_card(icon_tag: str, title: str, text: str, href: str | None = None) -
     content = rx.box(
         rx.box(
             rx.icon(tag=icon_tag, size=22, color=COLORS["green_soft"]),
-            width="50px",
-            height="50px",
-            border_radius="17px",
+            width="52px",
+            height="52px",
+            border_radius="18px",
             display="grid",
             place_items="center",
             bg="rgba(22, 199, 132, 0.14)",
             border=f"1px solid {COLORS['border']}",
-            margin_bottom="1.25rem",
+            margin_bottom="1.35rem",
         ),
         rx.heading(
             title,
             size="5",
-            margin_bottom="0.75rem",
+            color=COLORS["text"],
+            margin_bottom="0.85rem",
             letter_spacing="-0.02em",
+            line_height="1.2",
         ),
         rx.text(
             text,
             color=COLORS["muted"],
-            line_height="1.65",
-            font_size="0.96rem",
+            line_height="1.7",
+            font_size="0.97rem",
         ),
-        padding={"base": "1.5rem", "md": "1.85rem"},
-        min_height={"base": "220px", "md": "250px"},
+        padding=bp("1.45rem", md="1.85rem"),
+        min_height=bp("210px", md="240px"),
         width="100%",
         height="100%",
         display="flex",
@@ -348,7 +377,15 @@ def module_card(icon_tag: str, title: str, text: str, href: str | None = None) -
     )
 
     if href:
-        return rx.link(content, href=href, width="100%", height="100%")
+        return rx.link(
+            content,
+            href=href,
+            width="100%",
+            height="100%",
+            color="inherit",
+            text_decoration="none",
+            _hover={"text_decoration": "none"},
+        )
 
     return content
 
@@ -367,11 +404,11 @@ def intro_section() -> rx.Component:
                 ),
                 rx.heading(
                     "Gestión digital del Análisis de Trabajo Seguro.",
-                    size={"base": "8", "md": "9"},
-                    line_height="1.01",
-                    letter_spacing="-0.06em",
+                    size=bp("8", md="9"),
+                    line_height="1.03",
+                    letter_spacing="-0.055em",
                     text_align="center",
-                    max_width={"base": "100%", "md": "760px"},
+                    max_width="820px",
                 ),
                 rx.text(
                     (
@@ -381,28 +418,28 @@ def intro_section() -> rx.Component:
                     ),
                     color=COLORS["muted"],
                     line_height="1.8",
-                    font_size={"base": "1rem", "md": "1.1rem"},
+                    font_size=bp("1rem", md="1.12rem"),
                     text_align="center",
-                    max_width={"base": "100%", "md": "700px"},
+                    max_width="760px",
                 ),
                 rx.hstack(
                     _button_link("Ver módulos", "#modulos", primary=False),
                     _button_link("Entrar al sistema", "/login", primary=True),
-                    spacing={"base": "2", "sm": "3"},
+                    spacing="3",
                     justify="center",
                     flex_wrap="wrap",
-                    margin_top={"base": "0.45rem", "md": "0.8rem"},
+                    margin_top="1rem",
                 ),
                 width="100%",
                 align="center",
-                max_width="920px",
+                max_width="940px",
                 margin_x="auto",
-                spacing={"base": "4", "md": "5"},
+                spacing="5",
             )
         ),
         id="top",
-        padding_top={"base": "5.25rem", "md": "7rem"},
-        padding_bottom={"base": "5rem", "md": "6.5rem"},
+        padding_top=bp("4.75rem", md="6.5rem"),
+        padding_bottom=bp("6rem", md="8rem"),
         scroll_margin_top="100px",
     )
 
@@ -419,18 +456,18 @@ def modules_section() -> rx.Component:
                         letter_spacing="0.16em",
                         font_weight="800",
                         font_size="0.76rem",
-                        margin_bottom="0.85rem",
+                        margin_bottom="1rem",
                         text_align="center",
                     ),
                     rx.heading(
                         "Todo el ciclo ATS en una experiencia simple y consistente.",
-                        size={"base": "7", "md": "8"},
-                        line_height="1.05",
+                        size=bp("7", md="8"),
+                        line_height="1.08",
                         letter_spacing="-0.04em",
                         text_align="center",
-                        max_width="820px",
+                        max_width="840px",
                         margin_x="auto",
-                        margin_bottom="1rem",
+                        margin_bottom="1.1rem",
                     ),
                     rx.text(
                         "Cada módulo responde a un punto crítico del proceso operativo y documental.",
@@ -441,6 +478,7 @@ def modules_section() -> rx.Component:
                         margin_x="auto",
                     ),
                     width="100%",
+                    margin_bottom=bp("1.75rem", md="2.5rem"),
                 ),
                 rx.grid(
                     module_card(
@@ -476,18 +514,24 @@ def modules_section() -> rx.Component:
                         "Control por roles",
                         "ADMIN visualiza toda la operación; SISO trabaja sobre sus ATS autorizados.",
                     ),
-                    columns={"base": "1", "md": "2", "xl": "3"},
-                    gap={"base": "1.25rem", "md": "1.75rem", "xl": "2rem"},
                     width="100%",
+                    display="grid",
+                    grid_template_columns=bp(
+                        "1fr",
+                        md="repeat(2, minmax(0, 1fr))",
+                        xl="repeat(3, minmax(0, 1fr))",
+                    ),
+                    gap=bp("1.25rem", md="1.75rem", xl="2rem"),
+                    align_items="stretch",
                 ),
                 width="100%",
                 align="stretch",
-                spacing={"base": "7", "md": "8"},
+                spacing="0",
             )
         ),
         id="modulos",
-        padding_top={"base": "5.25rem", "md": "7rem"},
-        padding_bottom={"base": "6rem", "md": "8rem"},
+        padding_top=bp("5.75rem", md="7rem"),
+        padding_bottom=bp("6.5rem", md="8rem"),
         bg="linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.006))",
         border_top=f"1px solid {COLORS['border_soft']}",
         scroll_margin_top="100px",
@@ -499,24 +543,24 @@ def footer() -> rx.Component:
         _container(
             rx.hstack(
                 rx.text(
-                    f"(c) {datetime.now().year} App ATS SST",
+                    f"© {datetime.now().year} App ATS SST",
                     color=COLORS["soft"],
                     font_weight="700",
                 ),
                 rx.text(
                     "Plataforma web para gestión operativa de Análisis de Trabajo Seguro.",
                     color=COLORS["soft"],
-                    text_align={"base": "left", "md": "right"},
-                    max_width={"base": "100%", "md": "620px"},
+                    text_align=bp("left", md="right"),
+                    max_width="620px",
                 ),
                 justify="between",
                 align="center",
                 width="100%",
                 flex_wrap="wrap",
-                spacing={"base": "2", "md": "3"},
+                spacing="3",
             )
         ),
-        padding_y={"base": "2.2rem", "md": "2.75rem"},
+        padding_y=bp("2.5rem", md="3rem"),
         border_top=f"1px solid {COLORS['border_soft']}",
     )
 
