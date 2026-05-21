@@ -256,7 +256,7 @@ def landing_drawer() -> rx.Component:
                 box_shadow="0 24px 80px rgba(0,0,0,0.45)",
             )
         ),
-        direction="right",
+        direction="left",
     )
 
 
@@ -290,14 +290,6 @@ def top_bar() -> rx.Component:
                     href="#top",
                 ),
                 rx.spacer(),
-                rx.link(
-                    rx.button(
-                        "Entrar",
-                        **BUTTON_PRIMARY_STYLE,
-                    ),
-                    href="/login",
-                    display={"base": "none", "sm": "inline-flex"},
-                ),
                 landing_drawer(),
                 width="100%",
                 align="center",
@@ -325,12 +317,12 @@ def module_card(icon_tag: str, title: str, text: str, href: str | None = None) -
             place_items="center",
             bg="rgba(22, 199, 132, 0.14)",
             border=f"1px solid {COLORS['border']}",
-            margin_bottom="1.1rem",
+            margin_bottom="1.25rem",
         ),
         rx.heading(
             title,
             size="5",
-            margin_bottom="0.7rem",
+            margin_bottom="0.75rem",
             letter_spacing="-0.02em",
         ),
         rx.text(
@@ -339,9 +331,13 @@ def module_card(icon_tag: str, title: str, text: str, href: str | None = None) -
             line_height="1.65",
             font_size="0.96rem",
         ),
-        padding={"base": "1.35rem", "md": "1.65rem"},
-        min_height={"base": "auto", "md": "235px"},
+        padding={"base": "1.5rem", "md": "1.85rem"},
+        min_height={"base": "220px", "md": "250px"},
         width="100%",
+        height="100%",
+        display="flex",
+        flex_direction="column",
+        justify_content="flex-start",
         transition="all 180ms ease",
         _hover={
             "transform": "translateY(-4px)",
@@ -352,7 +348,7 @@ def module_card(icon_tag: str, title: str, text: str, href: str | None = None) -
     )
 
     if href:
-        return rx.link(content, href=href, width="100%")
+        return rx.link(content, href=href, width="100%", height="100%")
 
     return content
 
@@ -372,10 +368,10 @@ def intro_section() -> rx.Component:
                 rx.heading(
                     "Gestión digital del Análisis de Trabajo Seguro.",
                     size={"base": "8", "md": "9"},
-                    line_height="0.98",
+                    line_height="1.01",
                     letter_spacing="-0.06em",
                     text_align="center",
-                    max_width="860px",
+                    max_width={"base": "100%", "md": "760px"},
                 ),
                 rx.text(
                     (
@@ -384,27 +380,29 @@ def intro_section() -> rx.Component:
                         "para la gestión SST."
                     ),
                     color=COLORS["muted"],
-                    line_height="1.75",
-                    font_size={"base": "1rem", "md": "1.12rem"},
+                    line_height="1.8",
+                    font_size={"base": "1rem", "md": "1.1rem"},
                     text_align="center",
-                    max_width="780px",
+                    max_width={"base": "100%", "md": "700px"},
                 ),
                 rx.hstack(
                     _button_link("Ver módulos", "#modulos", primary=False),
                     _button_link("Entrar al sistema", "/login", primary=True),
-                    spacing="3",
+                    spacing={"base": "2", "sm": "3"},
                     justify="center",
                     flex_wrap="wrap",
-                    margin_top="0.8rem",
+                    margin_top={"base": "0.45rem", "md": "0.8rem"},
                 ),
                 width="100%",
                 align="center",
-                spacing="5",
+                max_width="920px",
+                margin_x="auto",
+                spacing={"base": "4", "md": "5"},
             )
         ),
         id="top",
-        padding_top={"base": "4.5rem", "md": "6rem"},
-        padding_bottom={"base": "4rem", "md": "5.5rem"},
+        padding_top={"base": "5.25rem", "md": "7rem"},
+        padding_bottom={"base": "5rem", "md": "6.5rem"},
         scroll_margin_top="100px",
     )
 
@@ -479,17 +477,17 @@ def modules_section() -> rx.Component:
                         "ADMIN visualiza toda la operación; SISO trabaja sobre sus ATS autorizados.",
                     ),
                     columns={"base": "1", "md": "2", "xl": "3"},
-                    gap={"base": "1rem", "md": "1.35rem", "xl": "1.5rem"},
+                    gap={"base": "1.25rem", "md": "1.75rem", "xl": "2rem"},
                     width="100%",
                 ),
                 width="100%",
                 align="stretch",
-                spacing="7",
+                spacing={"base": "2rem", "md": "2.75rem"},
             )
         ),
         id="modulos",
-        padding_top={"base": "4.5rem", "md": "6rem"},
-        padding_bottom={"base": "5rem", "md": "7rem"},
+        padding_top={"base": "5.25rem", "md": "7rem"},
+        padding_bottom={"base": "6rem", "md": "8rem"},
         bg="linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.006))",
         border_top=f"1px solid {COLORS['border_soft']}",
         scroll_margin_top="100px",
@@ -508,15 +506,17 @@ def footer() -> rx.Component:
                 rx.text(
                     "Plataforma web para gestión operativa de Análisis de Trabajo Seguro.",
                     color=COLORS["soft"],
+                    text_align={"base": "left", "md": "right"},
+                    max_width={"base": "100%", "md": "620px"},
                 ),
                 justify="between",
                 align="center",
                 width="100%",
                 flex_wrap="wrap",
-                spacing="3",
+                spacing={"base": "2", "md": "3"},
             )
         ),
-        padding_y="1.5rem",
+        padding_y={"base": "2.2rem", "md": "2.75rem"},
         border_top=f"1px solid {COLORS['border_soft']}",
     )
 
