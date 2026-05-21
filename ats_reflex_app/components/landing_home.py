@@ -482,7 +482,7 @@ def modules_section() -> rx.Component:
                 ),
                 width="100%",
                 align="stretch",
-                spacing={"base": "2rem", "md": "2.75rem"},
+                spacing={"base": "7", "md": "8"},
             )
         ),
         id="modulos",
