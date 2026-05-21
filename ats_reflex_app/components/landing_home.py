@@ -26,9 +26,19 @@ COLORS = {
 }
 
 SECTION_STYLE = {
+    #"width": "100%",
+    #"padding_top": {"base": "4.8rem", "md": "6.6rem"},
+    #"padding_bottom": {"base": "5rem", "md": "6.6rem"},
     "width": "100%",
     "padding_top": {"base": "4.8rem", "md": "6.6rem"},
     "padding_bottom": {"base": "5rem", "md": "6.6rem"},
+
+    # Margen externo para separar visualmente las secciones
+    "margin_top": {"base": "1.25rem", "md": "2rem"},
+    "margin_bottom": {"base": "1.25rem", "md": "2rem"},
+
+    # Evita que el navbar sticky tape el título al navegar por anclas
+    "scroll_margin_top": {"base": "96px", "md": "110px"},
 }
 
 CARD_STYLE = {
@@ -568,6 +578,7 @@ def hero_section() -> rx.Component:
         id="top",
         padding_top={"base": "3.2rem", "md": "4.8rem"},
         padding_bottom={"base": "4.8rem", "md": "6.5rem"},
+        margin_bottom={"base": "1.25rem", "md": "2rem"},
         width="100%",
     )
 
@@ -868,6 +879,8 @@ def cta_section() -> rx.Component:
         ),
         id="login",
         padding_y={"base": "4.2rem", "md": "5.4rem"},
+        margin_top={"base": "1.25rem", "md": "2rem"},
+        margin_bottom={"base": "1.25rem", "md": "2rem"},
         width="100%",
     )
 
