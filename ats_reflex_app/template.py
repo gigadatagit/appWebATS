@@ -22,7 +22,7 @@ def _login_prompt() -> rx.Component:
         rx.vstack(
             app_brand(subtitle="Debes autenticarte"),
             rx.heading("Debes iniciar sesion", **PAGE_TITLE_STYLE),
-            rx.text("Accede primero para usar el modulo ATS.", **PAGE_SUBTITLE_STYLE),
+            rx.text("Accede primero para usar la plataforma SST.", **PAGE_SUBTITLE_STYLE),
             rx.link(
                 rx.button("Ir al login", **PRIMARY_BUTTON_STYLE),
                 href="/login",
@@ -44,12 +44,12 @@ def _restricted_prompt() -> rx.Component:
             rx.text("Esta seccion es solo para administradores.", **PAGE_SUBTITLE_STYLE),
             rx.link(
                 rx.button(
-                    "Ir a ATS",
+                    "Ir al inicio SST",
                     variant="soft",
                     color_scheme="gray",
                     **SECONDARY_BUTTON_STYLE,
                 ),
-                href="/ats/formato",
+                href="/sst/dashboard",
             ),
             spacing="4",
             width="100%",

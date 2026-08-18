@@ -7,13 +7,29 @@ from ..state import DashboardState
 from ..styles import CARD_STYLE, SELECT_TRIGGER_STYLE, TABLE_SCROLL_STYLE
 from ..template import protected_page
 
+DASHBOARD_TABLE_MIN_WIDTH = "680px"
+DASHBOARD_CHART_MIN_WIDTH = "680px"
+
 
 def _empty_data_notice() -> rx.Component:
     return rx.text("Sin datos para mostrar.", color="#94a3b8", size="2")
 
 
-def _responsive_table(table: rx.Component, min_width: str = "540px") -> rx.Component:
-    return rx.box(table, min_width=min_width, **TABLE_SCROLL_STYLE)
+def _responsive_table(table: rx.Component, min_width: str = DASHBOARD_TABLE_MIN_WIDTH) -> rx.Component:
+    return rx.box(
+        rx.box(table, min_width=min_width, width="100%"),
+        min_width="0",
+        **TABLE_SCROLL_STYLE,
+    )
+
+
+def _responsive_chart(chart: rx.Component, min_width: str = DASHBOARD_CHART_MIN_WIDTH) -> rx.Component:
+    return rx.box(
+        rx.box(chart, width="100%", min_width=min_width),
+        width="100%",
+        min_width="0",
+        overflow_x="auto",
+    )
 
 
 def _filter_panel() -> rx.Component:
@@ -119,12 +135,13 @@ def _filter_panel() -> rx.Component:
         ),
         **CARD_STYLE,
         width="100%",
+        min_width="0",
         display="grid",
         gap="0.75rem",
     )
 
 
-@rx.page(route="/admin/dashboard", title="Dashboard Admin | ATS", on_load=DashboardState.load_metrics)
+@rx.page(route="/admin/dashboard", title="Dashboard ATS | SST", on_load=DashboardState.load_metrics)
 def admin_dashboard_page() -> rx.Component:
     content = rx.vstack(
         _filter_panel(),
@@ -133,7 +150,19 @@ def admin_dashboard_page() -> rx.Component:
             metric_card("Alto riesgo", DashboardState.total_alto_riesgo),
             metric_card("No alto riesgo", DashboardState.total_no_alto_riesgo),
             metric_card("% Alto riesgo", DashboardState.porcentaje_alto_riesgo),
-            columns={"base": "1", "md": "2", "xl": "3"},
+            columns={"base": "1", "md": "2", "xl": "4"},
+            spacing="4",
+            width="100%",
+        ),
+        rx.grid(
+            metric_card("Cerrados", DashboardState.total_cerrados, DashboardState.porcentaje_cerrados),
+            metric_card("Documentados", DashboardState.total_documentados, DashboardState.porcentaje_documentados),
+            metric_card(
+                "Formatos SST asociados",
+                DashboardState.total_formatos_asociados,
+                "Permisos o preoperacionales vinculados a ATS.",
+            ),
+            columns={"base": "1", "md": "3"},
             spacing="4",
             width="100%",
         ),
@@ -162,22 +191,24 @@ def admin_dashboard_page() -> rx.Component:
                 rx.heading("ATS por estado", size="5"),
                 rx.cond(
                     DashboardState.has_estado_data,
-                    rx.recharts.bar_chart(
-                        rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                        rx.recharts.x_axis(data_key="estado"),
-                        rx.recharts.y_axis(allow_decimals=False),
-                        rx.recharts.graphing_tooltip(),
-                        rx.recharts.legend(),
-                        rx.recharts.bar(
-                            rx.foreach(
-                                DashboardState.ats_por_estado,
-                                lambda row: rx.recharts.cell(fill=row["fill"]),
+                    _responsive_chart(
+                        rx.recharts.bar_chart(
+                            rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
+                            rx.recharts.x_axis(data_key="estado"),
+                            rx.recharts.y_axis(allow_decimals=False),
+                            rx.recharts.graphing_tooltip(),
+                            rx.recharts.legend(),
+                            rx.recharts.bar(
+                                rx.foreach(
+                                    DashboardState.ats_por_estado,
+                                    lambda row: rx.recharts.cell(fill=row["fill"]),
+                                ),
+                                data_key="total",
                             ),
-                            data_key="total",
-                        ),
-                        data=DashboardState.ats_por_estado,
-                        width="100%",
-                        height=300,
+                            data=DashboardState.ats_por_estado,
+                            width="100%",
+                            height=300,
+                        )
                     ),
                     _empty_data_notice(),
                 ),
@@ -203,6 +234,7 @@ def admin_dashboard_page() -> rx.Component:
                 ),
                 **CARD_STYLE,
                 width="100%",
+                min_width="0",
                 display="grid",
                 gap="0.75rem",
             ),
@@ -210,22 +242,24 @@ def admin_dashboard_page() -> rx.Component:
                 rx.heading("ATS por tipo", size="5"),
                 rx.cond(
                     DashboardState.has_tipo_data,
-                    rx.recharts.bar_chart(
-                        rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                        rx.recharts.x_axis(data_key="tipo"),
-                        rx.recharts.y_axis(allow_decimals=False),
-                        rx.recharts.graphing_tooltip(),
-                        rx.recharts.legend(),
-                        rx.recharts.bar(
-                            rx.foreach(
-                                DashboardState.ats_por_tipo,
-                                lambda row: rx.recharts.cell(fill=row["fill"]),
+                    _responsive_chart(
+                        rx.recharts.bar_chart(
+                            rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
+                            rx.recharts.x_axis(data_key="tipo"),
+                            rx.recharts.y_axis(allow_decimals=False),
+                            rx.recharts.graphing_tooltip(),
+                            rx.recharts.legend(),
+                            rx.recharts.bar(
+                                rx.foreach(
+                                    DashboardState.ats_por_tipo,
+                                    lambda row: rx.recharts.cell(fill=row["fill"]),
+                                ),
+                                data_key="total",
                             ),
-                            data_key="total",
-                        ),
-                        data=DashboardState.ats_por_tipo,
-                        width="100%",
-                        height=300,
+                            data=DashboardState.ats_por_tipo,
+                            width="100%",
+                            height=300,
+                        )
                     ),
                     _empty_data_notice(),
                 ),
@@ -251,6 +285,7 @@ def admin_dashboard_page() -> rx.Component:
                 ),
                 **CARD_STYLE,
                 width="100%",
+                min_width="0",
                 display="grid",
                 gap="0.75rem",
             ),
@@ -263,23 +298,25 @@ def admin_dashboard_page() -> rx.Component:
                 rx.heading("Alto riesgo vs No alto riesgo", size="5"),
                 rx.cond(
                     DashboardState.has_alto_riesgo_data,
-                    rx.recharts.pie_chart(
-                        rx.recharts.graphing_tooltip(),
-                        rx.recharts.legend(vertical_align="bottom"),
-                        rx.recharts.pie(
-                            rx.foreach(
-                                DashboardState.ats_alto_riesgo_pie,
-                                lambda row: rx.recharts.cell(fill=row["fill"]),
+                    _responsive_chart(
+                        rx.recharts.pie_chart(
+                            rx.recharts.graphing_tooltip(),
+                            rx.recharts.legend(vertical_align="bottom"),
+                            rx.recharts.pie(
+                                rx.foreach(
+                                    DashboardState.ats_alto_riesgo_pie,
+                                    lambda row: rx.recharts.cell(fill=row["fill"]),
+                                ),
+                                data=DashboardState.ats_alto_riesgo_pie,
+                                data_key="value",
+                                name_key="name",
+                                inner_radius="45%",
+                                outer_radius="75%",
+                                padding_angle=3,
                             ),
-                            data=DashboardState.ats_alto_riesgo_pie,
-                            data_key="value",
-                            name_key="name",
-                            inner_radius="45%",
-                            outer_radius="75%",
-                            padding_angle=3,
-                        ),
-                        width="100%",
-                        height=300,
+                            width="100%",
+                            height=300,
+                        )
                     ),
                     _empty_data_notice(),
                 ),
@@ -305,6 +342,7 @@ def admin_dashboard_page() -> rx.Component:
                 ),
                 **CARD_STYLE,
                 width="100%",
+                min_width="0",
                 display="grid",
                 gap="0.75rem",
             ),
@@ -312,22 +350,24 @@ def admin_dashboard_page() -> rx.Component:
                 rx.heading("ATS por usuario creador (SISO)", size="5"),
                 rx.cond(
                     DashboardState.has_usuario_data,
-                    rx.recharts.bar_chart(
-                        rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                        rx.recharts.x_axis(data_key="usuario"),
-                        rx.recharts.y_axis(allow_decimals=False),
-                        rx.recharts.graphing_tooltip(),
-                        rx.recharts.legend(),
-                        rx.recharts.bar(
-                            rx.foreach(
-                                DashboardState.ats_por_usuario,
-                                lambda row: rx.recharts.cell(fill=row["fill"]),
+                    _responsive_chart(
+                        rx.recharts.bar_chart(
+                            rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
+                            rx.recharts.x_axis(data_key="usuario"),
+                            rx.recharts.y_axis(allow_decimals=False),
+                            rx.recharts.graphing_tooltip(),
+                            rx.recharts.legend(),
+                            rx.recharts.bar(
+                                rx.foreach(
+                                    DashboardState.ats_por_usuario,
+                                    lambda row: rx.recharts.cell(fill=row["fill"]),
+                                ),
+                                data_key="total",
                             ),
-                            data_key="total",
-                        ),
-                        data=DashboardState.ats_por_usuario,
-                        width="100%",
-                        height=300,
+                            data=DashboardState.ats_por_usuario,
+                            width="100%",
+                            height=300,
+                        )
                     ),
                     _empty_data_notice(),
                 ),
@@ -353,6 +393,7 @@ def admin_dashboard_page() -> rx.Component:
                 ),
                 **CARD_STYLE,
                 width="100%",
+                min_width="0",
                 display="grid",
                 gap="0.75rem",
             ),
@@ -365,23 +406,25 @@ def admin_dashboard_page() -> rx.Component:
                 rx.heading("Peligros mas frecuentes", size="5"),
                 rx.cond(
                     DashboardState.has_peligro_data,
-                    rx.recharts.bar_chart(
-                        rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                        rx.recharts.x_axis(type_="number", allow_decimals=False),
-                        rx.recharts.y_axis(type_="category", data_key="peligro", width=250),
-                        rx.recharts.graphing_tooltip(),
-                        rx.recharts.legend(),
-                        rx.recharts.bar(
-                            rx.foreach(
-                                DashboardState.ats_por_peligro,
-                                lambda row: rx.recharts.cell(fill=row["fill"]),
+                    _responsive_chart(
+                        rx.recharts.bar_chart(
+                            rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
+                            rx.recharts.x_axis(type_="number", allow_decimals=False),
+                            rx.recharts.y_axis(type_="category", data_key="peligro", width=250),
+                            rx.recharts.graphing_tooltip(),
+                            rx.recharts.legend(),
+                            rx.recharts.bar(
+                                rx.foreach(
+                                    DashboardState.ats_por_peligro,
+                                    lambda row: rx.recharts.cell(fill=row["fill"]),
+                                ),
+                                data_key="total",
                             ),
-                            data_key="total",
-                        ),
-                        data=DashboardState.ats_por_peligro,
-                        layout="vertical",
-                        width="100%",
-                        height=420,
+                            data=DashboardState.ats_por_peligro,
+                            layout="vertical",
+                            width="100%",
+                            height=420,
+                        )
                     ),
                     _empty_data_notice(),
                 ),
@@ -407,6 +450,7 @@ def admin_dashboard_page() -> rx.Component:
                 ),
                 **CARD_STYLE,
                 width="100%",
+                min_width="0",
                 display="grid",
                 gap="0.75rem",
             ),
@@ -414,23 +458,25 @@ def admin_dashboard_page() -> rx.Component:
                 rx.heading("Controles mas frecuentes", size="5"),
                 rx.cond(
                     DashboardState.has_control_data,
-                    rx.recharts.bar_chart(
-                        rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                        rx.recharts.x_axis(type_="number", allow_decimals=False),
-                        rx.recharts.y_axis(type_="category", data_key="control", width=300),
-                        rx.recharts.graphing_tooltip(),
-                        rx.recharts.legend(),
-                        rx.recharts.bar(
-                            rx.foreach(
-                                DashboardState.ats_por_control,
-                                lambda row: rx.recharts.cell(fill=row["fill"]),
+                    _responsive_chart(
+                        rx.recharts.bar_chart(
+                            rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
+                            rx.recharts.x_axis(type_="number", allow_decimals=False),
+                            rx.recharts.y_axis(type_="category", data_key="control", width=300),
+                            rx.recharts.graphing_tooltip(),
+                            rx.recharts.legend(),
+                            rx.recharts.bar(
+                                rx.foreach(
+                                    DashboardState.ats_por_control,
+                                    lambda row: rx.recharts.cell(fill=row["fill"]),
+                                ),
+                                data_key="total",
                             ),
-                            data_key="total",
-                        ),
-                        data=DashboardState.ats_por_control,
-                        layout="vertical",
-                        width="100%",
-                        height=420,
+                            data=DashboardState.ats_por_control,
+                            layout="vertical",
+                            width="100%",
+                            height=420,
+                        )
                     ),
                     _empty_data_notice(),
                 ),
@@ -456,6 +502,7 @@ def admin_dashboard_page() -> rx.Component:
                 ),
                 **CARD_STYLE,
                 width="100%",
+                min_width="0",
                 display="grid",
                 gap="0.75rem",
             ),
@@ -467,23 +514,25 @@ def admin_dashboard_page() -> rx.Component:
             rx.heading("Tendencia mensual de ATS", size="5"),
             rx.cond(
                 DashboardState.has_mes_data,
-                rx.recharts.line_chart(
-                    rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                    rx.recharts.x_axis(data_key="periodo"),
-                    rx.recharts.y_axis(allow_decimals=False),
-                    rx.recharts.graphing_tooltip(),
-                    rx.recharts.legend(),
-                    rx.recharts.line(
-                        data_key="total",
-                        stroke="#15803d",
-                        stroke_width=3,
-                        dot=True,
-                        type_="monotone",
-                        name="ATS",
-                    ),
-                    data=DashboardState.ats_por_mes,
-                    width="100%",
-                    height=320,
+                _responsive_chart(
+                    rx.recharts.line_chart(
+                        rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
+                        rx.recharts.x_axis(data_key="periodo"),
+                        rx.recharts.y_axis(allow_decimals=False),
+                        rx.recharts.graphing_tooltip(),
+                        rx.recharts.legend(),
+                        rx.recharts.line(
+                            data_key="total",
+                            stroke="#15803d",
+                            stroke_width=3,
+                            dot=True,
+                            type_="monotone",
+                            name="ATS",
+                        ),
+                        data=DashboardState.ats_por_mes,
+                        width="100%",
+                        height=320,
+                    )
                 ),
                 _empty_data_notice(),
             ),
@@ -509,17 +558,19 @@ def admin_dashboard_page() -> rx.Component:
             ),
             **CARD_STYLE,
             width="100%",
+            min_width="0",
             display="grid",
             gap="0.75rem",
         ),
         width="100%",
         align="stretch",
         spacing="4",
+        min_width="0",
     )
     return protected_page(
-        "Dashboard administrativo",
+        "Dashboard ATS",
         content,
         admin_only=True,
-        subtitle="Metricas ATS filtrables por empleado SISO para seguimiento operativo.",
+        subtitle="Metricas del modulo ATS filtrables por empleado SISO para seguimiento operativo.",
         current_route="/admin/dashboard",
     )

@@ -14,7 +14,7 @@ def app_brand(
     compact: bool = False,
     show_text: bool = True,
     subtitle: str = "",
-    title: str = "GIGATech ATS",
+    title: str = "GIGATech SST",
     logo_size: str | None = None,
 ) -> rx.Component:
     resolved_logo_size = logo_size or ("32px" if compact else "40px")
@@ -22,7 +22,7 @@ def app_brand(
         rx.box(
             rx.image(
                 src=BRAND_LOGO_ASSET_PATH,
-                alt="Logo de GIGATech ATS",
+                alt="Logo de GIGATech SST",
                 width="100%",
                 height="100%",
                 object_fit="contain",

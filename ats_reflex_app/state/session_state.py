@@ -60,7 +60,7 @@ class SessionState(rx.State):
     def _resolve_authenticated_home_route(self) -> str:
         role_code = str(self.current_user_role_codigo or self.rol_codigo or "").strip().upper()
         if role_code == "ADMIN":
-            return "/admin/dashboard"
+            return "/sst/dashboard"
         return "/ats/formato"
 
     def redirect_authenticated_home(self):
@@ -107,12 +107,12 @@ class SessionState(rx.State):
             ).first()
             if user is None:
                 self.login_error = (
-                    "Tu usuario existe en Supabase Auth, pero aun no tiene perfil interno asignado en la App ATS."
+                    "Tu usuario existe en Supabase Auth, pero aun no tiene perfil interno asignado en la plataforma SST."
                 )
                 return
 
             if not bool(user.activo):
-                self.login_error = "Tu perfil interno en la App ATS esta inactivo."
+                self.login_error = "Tu perfil interno en la plataforma SST esta inactivo."
                 return
 
             role = session.exec(select(Rol).where(Rol.id == user.rol_id)).first()

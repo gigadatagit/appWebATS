@@ -6,6 +6,11 @@ assets/img/
 *.py[cod]
 *.db
 .web
+sql
+sql/01_schema.sql
+sql/01_schema_supabase.sql
+.agents
+
 
 # =========================
 # Entornos virtuales Python
@@ -61,6 +66,7 @@ data/*.sqlite3
 data/*.csv
 data/*.xlsx
 data/*.json
+data/*.sql
 !data/.gitkeep
 
 # =========================
@@ -118,3 +124,11 @@ alembic/env.py
 alembic/script.py.mako
 alembic/versions/
 alembic/versions/*.py
+
+
+# =========================
+# Markdowns
+# =========================
+
+analisis_funcional_app_web_sst.md
+auditoria_app_web_mayo_2026.md

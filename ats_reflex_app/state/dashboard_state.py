@@ -4,6 +4,7 @@ from datetime import date
 
 import reflex as rx
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from .session_state import SessionState
 
@@ -22,6 +23,7 @@ class DashboardState(rx.State):
     total_no_alto_riesgo: int = 0
     total_cerrados: int = 0
     total_documentados: int = 0
+    total_formatos_asociados: int = 0
     promedio_controles_por_ats: float = 0.0
 
     ats_por_estado: list[dict] = []
@@ -251,6 +253,7 @@ class DashboardState(rx.State):
         self.total_no_alto_riesgo = 0
         self.total_cerrados = 0
         self.total_documentados = 0
+        self.total_formatos_asociados = 0
         self.promedio_controles_por_ats = 0.0
         self.ats_por_estado = []
         self.ats_por_tipo = []
@@ -403,6 +406,47 @@ class DashboardState(rx.State):
                 ).scalar()
                 or 0
             )
+
+            try:
+                self.total_formatos_asociados = int(
+                    session.execute(
+                        text(
+                            base_cte
+                            + """
+                            SELECT COALESCE(SUM(total_asociados), 0) AS total
+                            FROM (
+                                SELECT
+                                    fa.id,
+                                    (
+                                        SELECT COUNT(*)
+                                        FROM preoperacional_maquinaria pm
+                                        WHERE pm.ats_id = fa.id
+                                    )
+                                    + (
+                                        SELECT COUNT(*)
+                                        FROM permiso_trabajo_alturas pta
+                                        WHERE pta.ats_id = fa.id
+                                    )
+                                    + (
+                                        SELECT COUNT(*)
+                                        FROM permiso_trabajo_energias_peligrosas ptep
+                                        WHERE ptep.ats_id = fa.id
+                                    )
+                                    + (
+                                        SELECT COUNT(*)
+                                        FROM permiso_trabajo_caliente ptc
+                                        WHERE ptc.ats_id = fa.id
+                                    ) AS total_asociados
+                                FROM filtered_ats fa
+                            ) t
+                            """
+                        ),
+                        params,
+                    ).scalar()
+                    or 0
+                )
+            except SQLAlchemyError:
+                self.total_formatos_asociados = 0
 
             avg_controls_raw = (
                 session.execute(

@@ -210,10 +210,10 @@ def landing_drawer() -> rx.Component:
                         app_brand(show_text=False, logo_size="46px"),
                         rx.vstack(
                             rx.drawer.title(
-                                "App ATS SST",
+                                "Plataforma SST",
                                 font_weight="900",
                                 color=COLORS["green_soft"],
-                                letter_spacing="-0.03em",
+                                letter_spacing="0",
                                 line_height="1",
                             ),
                             rx.drawer.description(
@@ -257,7 +257,7 @@ def landing_drawer() -> rx.Component:
                     rx.spacer(),
                     rx.box(
                         rx.text(
-                            "Gestiona el ATS de forma digital, clara y trazable.",
+                            "Gestiona, analiza y documenta formatos SST en una sola plataforma.",
                             color=COLORS["muted"],
                             line_height="1.6",
                             font_size="0.95rem",
@@ -294,10 +294,10 @@ def top_bar() -> rx.Component:
                         app_brand(show_text=False, logo_size="42px"),
                         rx.vstack(
                             rx.text(
-                                "App ATS SST",
+                                "Plataforma SST",
                                 font_weight="900",
                                 color=COLORS["green_soft"],
-                                letter_spacing="-0.03em",
+                                letter_spacing="0",
                                 line_height="1",
                             ),
                             rx.text(
@@ -351,7 +351,7 @@ def module_card(icon_tag: str, title: str, text: str, href: str | None = None) -
             size="5",
             color=COLORS["text"],
             margin_bottom="0.85rem",
-            letter_spacing="-0.02em",
+            letter_spacing="0",
             line_height="1.2",
         ),
         rx.text(
@@ -395,7 +395,7 @@ def intro_section() -> rx.Component:
         _container(
             rx.vstack(
                 rx.badge(
-                    "App web ATS SST",
+                    "App web SST",
                     color_scheme="green",
                     variant="soft",
                     radius="full",
@@ -403,18 +403,17 @@ def intro_section() -> rx.Component:
                     padding_y="0.35rem",
                 ),
                 rx.heading(
-                    "Gestión digital del Análisis de Trabajo Seguro.",
+                    "Gestion integral de formatos SST.",
                     size=bp("8", md="9"),
                     line_height="1.03",
-                    letter_spacing="-0.055em",
+                    letter_spacing="0",
                     text_align="center",
                     max_width="820px",
                 ),
                 rx.text(
                     (
-                        "Una plataforma web para centralizar el proceso ATS: registro estructurado, "
-                        "trazabilidad operativa, control documental, generación de PDF y métricas útiles "
-                        "para la gestión SST."
+                        "Una plataforma web para centralizar ATS, permisos, listas de chequeo, "
+                        "analitica operativa, trazabilidad y generacion documental para la gestion SST."
                     ),
                     color=COLORS["muted"],
                     line_height="1.8",
@@ -460,17 +459,17 @@ def modules_section() -> rx.Component:
                         text_align="center",
                     ),
                     rx.heading(
-                        "Todo el ciclo ATS en una experiencia simple y consistente.",
+                        "Formatos SST, analitica y documentos en una experiencia consistente.",
                         size=bp("7", md="8"),
                         line_height="1.08",
-                        letter_spacing="-0.04em",
+                        letter_spacing="0",
                         text_align="center",
                         max_width="840px",
                         margin_x="auto",
                         margin_bottom="1.1rem",
                     ),
                     rx.text(
-                        "Cada módulo responde a un punto crítico del proceso operativo y documental.",
+                        "Cada modulo abre una vista operativa para gestionar trazabilidad, tableros y evidencia documental.",
                         color=COLORS["muted"],
                         line_height="1.7",
                         text_align="center",
@@ -483,36 +482,51 @@ def modules_section() -> rx.Component:
                 rx.grid(
                     module_card(
                         "clipboard_check",
-                        "Formato ATS por fases",
+                        "ATS",
                         "Captura datos generales, tareas, peligros, controles, observaciones y cierre.",
                         "/ats/formato",
                     ),
                     module_card(
-                        "route",
-                        "Matriz paso-peligro-control",
-                        "Relaciona cada paso de la actividad con sus peligros y medidas de control aplicadas.",
+                        "tractor",
+                        "Preoperacionales",
+                        "Analiza inspecciones de maquinaria, operadores, certificacion y respuestas criticas.",
+                        "/sst/dashboard/preoperacionales",
                     ),
                     module_card(
-                        "users",
-                        "Trabajadores y firmas",
-                        "Integra el catálogo de personal, snapshot histórico y firma operativa como evidencia.",
+                        "mountain",
+                        "Trabajo en alturas",
+                        "Consulta permisos, medios de acceso, vigencias, cierres, firmas y alertas de checklist.",
+                        "/sst/dashboard/alturas",
                     ),
                     module_card(
-                        "file_text",
-                        "Documentos PDF",
-                        "Permite búsqueda, generación, descarga y control del historial de versiones.",
-                        "/ats/documentos",
+                        "waves_ladder",
+                        "Medios de acceso",
+                        "Revisa listas de chequeo asociadas a permisos de alturas y su estado documental.",
+                        "/sst/dashboard/medios-acceso",
+                    ),
+                    module_card(
+                        "zap",
+                        "Energias peligrosas",
+                        "Controla permisos, tipos de tension, reglas de oro, cierres y evidencias.",
+                        "/sst/dashboard/energias-peligrosas",
+                    ),
+                    module_card(
+                        "flame",
+                        "Trabajo caliente",
+                        "Visualiza permisos, soldadura, vigencias, suspensiones, documentos y alertas.",
+                        "/sst/dashboard/trabajo-caliente",
                     ),
                     module_card(
                         "layout_dashboard",
-                        "Dashboard administrativo",
-                        "Centraliza KPIs y analítica por estado, tipo de riesgo, usuario y periodos.",
-                        "/admin/dashboard",
+                        "Dashboard SST",
+                        "Consolida registros, pendientes, documentos, origen movil y tendencias por formato.",
+                        "/sst/dashboard",
                     ),
                     module_card(
-                        "shield",
-                        "Control por roles",
-                        "ADMIN visualiza toda la operación; SISO trabaja sobre sus ATS autorizados.",
+                        "file_text",
+                        "Documentos SST",
+                        "Centraliza el historial de PDF por formato y mantiene la generacion ATS actual.",
+                        "/sst/documentos",
                     ),
                     width="100%",
                     display="grid",
@@ -543,12 +557,12 @@ def footer() -> rx.Component:
         _container(
             rx.hstack(
                 rx.text(
-                    f"© {datetime.now().year} App ATS SST",
+                    f"© {datetime.now().year} Plataforma SST",
                     color=COLORS["soft"],
                     font_weight="700",
                 ),
                 rx.text(
-                    "Plataforma web para gestión operativa de Análisis de Trabajo Seguro.",
+                    "Plataforma web para gestion, analitica y documentacion de formatos SST.",
                     color=COLORS["soft"],
                     text_align=bp("left", md="right"),
                     max_width="620px",
@@ -572,5 +586,5 @@ def landing_page() -> rx.Component:
         modules_section(),
         footer(),
         **PAGE_STYLE,
-        custom_attrs={"style": "scroll-behavior: smooth;"},
+        scroll_behavior="smooth",
     )

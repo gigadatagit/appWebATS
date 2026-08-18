@@ -1,0 +1,45 @@
+{% extends "_base.html" %}
+{% import "_macros.html" as ui %}
+{% block content %}
+<div class="section-title">Identificación general</div>
+<table class="form-table">
+  <tr><td class="label">Tipo de trabajo</td><td colspan="3">{% for item in tipos_trabajo %}☒ {{ item.nombre }}{% if item.tipo_soldadura_descripcion %} · Soldadura: {{ item.tipo_soldadura_descripcion }}{% endif %}{% if item.descripcion_otro %}: {{ item.descripcion_otro }}{% endif %}{% if not loop.last %}<br>{% endif %}{% else %}<span class="empty">No registrado</span>{% endfor %}</td></tr>
+  <tr><td class="label">Proceso</td><td>{{ general.get('proceso')|value }}</td><td class="label">Actividad</td><td>{{ general.get('actividad')|value }}</td></tr>
+  <tr><td class="label">Proyecto</td><td>{{ general.get('proyecto')|value }}</td><td class="label">Zona o lugar</td><td>{{ general.get('zona_lugar')|value }}</td></tr>
+  <tr><td class="label">Fecha de inicio / cierre</td><td>{{ general.get('fecha_inicial')|value }} / {{ general.get('fecha_cierre')|value }}</td><td class="label">Hora inicial / cierre</td><td>{{ general.get('hora_inicial')|value }} / {{ general.get('hora_cierre')|value }}</td></tr>
+  <tr><td class="label">Descripción de la actividad</td><td colspan="3" class="prewrap">{{ general.get('descripcion_actividad')|value }}</td></tr>
+  <tr><td class="label">Herramientas</td><td colspan="3" class="prewrap">{{ general.get('herramientas_utilizar')|value }}</td></tr>
+</table>
+
+<div class="section-title">Emisor y condiciones del trabajador</div>
+<table class="form-table">
+  <tr><td class="label">Emisor</td><td>{{ general.get('emisor_nombre')|value }}</td><td class="label">Cargo / celular</td><td>{{ general.get('emisor_cargo')|value }} · {{ general.get('emisor_celular')|value }}</td></tr>
+  <tr><td class="label">Seguridad social vigente</td><td>{{ ui.boolean_mark(general.get('seguridad_social_vigente')) }}</td><td class="label">Aptitud vigente</td><td>{{ ui.boolean_mark(general.get('aptitud_vigente')) }}</td></tr>
+  <tr><td class="label">Capacitación vigente</td><td>{{ ui.boolean_mark(general.get('capacitacion_vigente')) }}</td><td class="label">Rutinario</td><td>{{ ui.boolean_mark(general.get('rutinario')) }}</td></tr>
+</table>
+
+{{ ui.checklist_tables(checklist_secciones) }}
+
+<div class="section-title">Trabajadores autorizados</div>
+{{ ui.workers_table(trabajadores) }}
+<div class="section-title">Observaciones</div>
+<table class="form-table"><tr><td class="prewrap">{{ general.get('observaciones')|value }}</td></tr></table>
+<div class="section-title">Firmas de aprobación</div>
+{{ ui.signatures_grid(firmas) }}
+
+{% if cierre.get('hubo_suspension') %}
+<div class="section-title">Suspensión</div>
+<table class="form-table">
+  <tr><td class="label">Fecha / hora</td><td colspan="3">{{ cierre.get('fecha_suspension')|value }} / {{ cierre.get('hora_suspension')|value }}</td></tr>
+  <tr><td class="label">Razones</td><td colspan="3" class="prewrap">{{ cierre.get('razones_suspension')|value }}</td></tr>
+  <tr><td class="label">Suspende</td><td colspan="3">{{ cierre.get('suspende_nombre')|value }} · {{ cierre.get('suspende_cargo')|value }}</td></tr>
+  <tr><td class="label">Firma de suspensión</td><td colspan="3" class="center">{% if cierre.get('suspende_firma_disponible') %}<img class="signature-image" src="{{ cierre.get('suspende_firma_data_uri') }}" alt="Firma de suspensión">{% else %}<span class="empty">Firma no registrada</span>{% endif %}</td></tr>
+</table>
+{% else %}
+<div class="section-title">Cierre</div>
+<table class="form-table">
+  <tr><td class="label">Hora de cierre real</td><td colspan="3">{{ cierre.get('hora_cierre_real')|value }}</td></tr>
+  <tr><td class="label">Firma emisor cierre</td><td colspan="3" class="center">{% if cierre.get('emisor_cierre_firma_disponible') %}<img class="signature-image" src="{{ cierre.get('emisor_cierre_firma_data_uri') }}" alt="Firma de cierre">{% else %}<span class="empty">Firma no registrada</span>{% endif %}</td></tr>
+</table>
+{% endif %}
+{% endblock %}

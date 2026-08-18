@@ -1,0 +1,61 @@
+{% extends "_base.html" %}
+{% import "_macros.html" as ui %}
+{% block page_size %}Letter landscape{% endblock %}
+{% block content %}
+<div class="section-title">Identificación general</div>
+<table class="form-table">
+  <tr><td class="label">Empresa o persona que ejecuta</td><td colspan="3">{{ general.get('empresa_persona_ejecuta')|value }}</td><td class="label">Fecha elaboración</td><td>{{ general.get('fecha_elaboracion')|value }}</td></tr>
+  <tr><td class="label">Ciudad</td><td>{{ general.get('ciudad')|value }}</td><td class="label">Área o lugar</td><td>{{ general.get('area_lugar')|value }}</td><td class="label">ATS N.º</td><td>{{ general.get('numero_ats')|value }}</td></tr>
+  <tr><td class="label">Tipo ATS</td><td>{{ general.get('tipo_ats')|value }}</td><td class="label">Duración</td><td>{{ general.get('duracion_actividad')|value }}</td><td class="label">Actividad de alto riesgo</td><td>{{ ui.boolean_mark(general.get('actividad_alto_riesgo')) }}</td></tr>
+  <tr><td class="label">Descripción de la actividad</td><td colspan="5" class="prewrap">{{ general.get('descripcion_actividad')|value }}</td></tr>
+</table>
+
+<div class="section-title">Información de apoyo y certificados asociados</div>
+<table class="form-table">
+  <thead><tr><th>Información de apoyo</th><th>Certificados asociados</th></tr></thead>
+  <tr>
+    <td>{% for item in apoyos %}<div>☒ {{ item.nombre }}{% if item.descripcion_otro %}: {{ item.descripcion_otro }}{% endif %}</div>{% else %}<span class="empty">No registrado</span>{% endfor %}</td>
+    <td>{% for item in certificados %}<div>☒ {{ item.nombre }}{% if item.descripcion_otro %}: {{ item.descripcion_otro }}{% endif %}</div>{% else %}<span class="empty">No registrado</span>{% endfor %}</td>
+  </tr>
+</table>
+
+<div class="section-title">Peligros y riesgos identificados</div>
+<table class="form-table">
+  <thead><tr><th style="width:12mm">Código</th><th>Peligro</th><th>Detalle</th></tr></thead>
+  <tbody>
+    {% for danger in peligros %}<tr><td class="center">P{{ danger.numero_visual }}</td><td>{{ danger.nombre }}</td><td>{{ danger.descripcion_otro|value }}</td></tr>
+    {% else %}<tr><td colspan="3" class="empty center">No hay peligros registrados.</td></tr>{% endfor %}
+  </tbody>
+</table>
+
+<div class="section-title">Descripción de pasos, peligros asociados y controles</div>
+<table class="form-table">
+  <thead><tr><th style="width:10mm">Paso</th><th>Descripción</th><th>Peligro asociado</th><th>Controles a realizar</th></tr></thead>
+  <tbody>
+  {% for step in pasos %}
+    {% if step.peligros %}
+      {% for danger in step.peligros %}
+      <tr>
+        {% if loop.first %}<td class="center" rowspan="{{ step.peligros|length }}">{{ step.numero }}</td><td rowspan="{{ step.peligros|length }}">{{ step.descripcion|value }}</td>{% endif %}
+        <td>P{{ danger.numero }} - {{ danger.nombre|value }}{% if danger.detalle %}<br><strong>Detalle:</strong> {{ danger.detalle }}{% endif %}</td>
+        <td>{% for control in danger.controles %}<div>• {{ control }}</div>{% else %}<span class="empty">Sin controles registrados</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr><td class="center">{{ step.numero }}</td><td>{{ step.descripcion|value }}</td><td class="empty">Sin peligros asociados</td><td class="empty">Sin controles registrados</td></tr>
+    {% endif %}
+  {% else %}
+    <tr><td colspan="4" class="empty center">No hay pasos registrados.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="section-title">Trabajadores relacionados con la actividad</div>
+{{ ui.workers_table(trabajadores) }}
+
+<div class="section-title">Observaciones</div>
+<table class="form-table"><tr><td class="prewrap">{{ general.get('observaciones')|value }}</td></tr></table>
+
+<div class="section-title">Aprobaciones</div>
+{{ ui.signatures_grid(firmas) }}
+{% endblock %}

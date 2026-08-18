@@ -14,7 +14,7 @@ from ..styles import (
 )
 
 
-@rx.page(route="/login", title="Login | ATS")
+@rx.page(route="/login", title="Login | SST")
 def login_page() -> rx.Component:
     return rx.center(
         rx.box(
@@ -26,12 +26,13 @@ def login_page() -> rx.Component:
                 rx.vstack(
                     rx.heading("Iniciar sesión", align="center", text_align="center", **PAGE_TITLE_STYLE),
                     rx.text(
-                        "Ingresa tu correo y contraseña para continuar con el flujo ATS.",
+                        "Ingresa tu correo y contraseña para continuar con la plataforma SST.",
                         text_align="center",
                         **PAGE_SUBTITLE_STYLE,
                     ),
                     spacing="1",
                     width="100%",
+                    align="center",
                 ),
                 rx.vstack(
                     rx.text("Correo", size="2", font_weight="600", color="#0f172a"),

@@ -1,0 +1,27 @@
+{% extends "_base.html" %}
+{% import "_macros.html" as ui %}
+{% block content %}
+<div class="section-title">Identificación general</div>
+<table class="form-table">
+  <tr><td class="label">Permiso de alturas</td><td>{{ general.get('permiso_alturas_codigo_publico')|value }}</td><td class="label">Proceso</td><td>{{ general.get('proceso')|value }}</td></tr>
+  <tr><td class="label">Actividad</td><td>{{ general.get('actividad')|value }}</td><td class="label">Rutinario</td><td>{{ ui.boolean_mark(general.get('rutinario')) }}</td></tr>
+  <tr><td class="label">Fecha de inicio / cierre</td><td colspan="3">{{ general.get('fecha_inicial')|value }} / {{ general.get('fecha_cierre')|value }}</td></tr>
+  <tr><td class="label">Altura aproximada</td><td>{{ general.get('altura_aproximada_m')|value }} m</td><td class="label">Medio certificado</td><td>{{ ui.boolean_mark(general.get('medio_acceso_certificado')) }}</td></tr>
+  <tr><td class="label">Tipo de trabajo</td><td colspan="3">{% for item in tipos_trabajo %}☒ {{ item.nombre }}{% if item.descripcion_otro %}: {{ item.descripcion_otro }}{% endif %}{% if not loop.last %} · {% endif %}{% else %}<span class="empty">No registrado</span>{% endfor %}</td></tr>
+</table>
+
+<div class="section-title">Medio de acceso: {{ general.get('medio_acceso_nombre_snapshot')|value }}</div>
+<div class="resource-panel">
+  <div class="resource-image">{% if recurso_principal.available %}<img src="{{ recurso_principal.data_uri }}" alt="Imagen de {{ general.get('medio_acceso_nombre_snapshot')|value }}">{% else %}<span class="empty">{{ recurso_principal.message }}</span>{% endif %}</div>
+  <div class="resource-description"><strong>Descripción</strong><p class="prewrap">{{ general.get('medio_acceso_descripcion_snapshot')|value }}</p></div>
+</div>
+
+{{ ui.checklist_tables(checklist_secciones) }}
+
+<div class="section-title">Observaciones y novedades</div>
+<table class="form-table"><tr><td class="prewrap">{{ general.get('observaciones')|value }}</td></tr></table>
+
+<div class="section-title">Coordinación de trabajo en alturas</div>
+<table class="form-table"><tr><td class="label">Coordinador</td><td>{{ general.get('coordinador_nombre')|value }}</td><td class="label">Cargo</td><td>{{ general.get('coordinador_cargo')|value }}</td><td class="label">Celular</td><td>{{ general.get('coordinador_celular')|value }}</td></tr></table>
+{{ ui.signatures_grid(firmas) }}
+{% endblock %}

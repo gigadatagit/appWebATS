@@ -3,7 +3,6 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_ENV=production \
-    ATS_PDF_ENGINE=libreoffice \
     SUPABASE_STORAGE_BUCKET=ATSDocumentos \
     PORT=10000
 
@@ -17,8 +16,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-dejavu-core \
     fonts-liberation \
     fonts-noto-core \
-    libreoffice \
-    libreoffice-writer \
     nodejs \
     npm \
     && rm -rf /var/lib/apt/lists/*

@@ -24,6 +24,7 @@ def metric_card(title: str, value, subtitle: str = "") -> rx.Component:
         rx.cond(subtitle, rx.text(subtitle, size="2", color="#94a3b8")),
         **CARD_STYLE,
         width="100%",
+        min_width="0",
     )
 
 

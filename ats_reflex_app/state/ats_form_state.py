@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import date, datetime
-from pathlib import Path
 from typing import TypedDict
 
 import reflex as rx
@@ -26,7 +25,6 @@ from ..models import (
     Ats,
     AtsApoyo,
     AtsCertificado,
-    AtsDocumento,
     AtsFirmaFinal,
     AtsPaso,
     AtsPasoPeligro,
@@ -40,12 +38,9 @@ from ..models import (
     Trabajador,
     AtsTrabajador,
 )
-from ..config import get_ats_pdf_engine, get_supabase_signed_url_ttl_seconds
-from ..docx_template_pdf import generate_pdf_bytes_from_template
+from ..config import get_supabase_signed_url_ttl_seconds
 from ..storage_supabase import (
     create_signed_file_url,
-    delete_file_if_exists,
-    upload_pdf_bytes,
 )
 from .session_state import SessionState
 
@@ -1961,139 +1956,11 @@ class AtsFormState(rx.State):
     async def generar_documento_pdf(self):
         self.documento_error = ""
         self.documento_success = ""
-
-        session_state = await self.get_state(SessionState)
-        if not session_state.is_authenticated:
-            return rx.redirect("/login")
-
-        self._sync_auth_context(session_state)
-        try:
-            user_id, role_code = self._require_ats_role_context()
-        except AccessDeniedError as exc:
-            self.documento_error = str(exc)
-            return
-
-        ats_id = int(self.documento_selected_ats_id or 0)
-        if ats_id <= 0:
-            self.documento_error = "Selecciona un ATS para generar el PDF."
-            return
-
-        template_path = Path.cwd() / "assets" / "templates" / "ats_template.docx"
-        if not template_path.exists():
-            self.documento_error = (
-                "No existe la plantilla Word requerida en assets/templates/ats_template.docx."
-            )
-            return
-
-        try:
-            pdf_engine = get_ats_pdf_engine()
-        except RuntimeError as exc:
-            self.documento_error = str(exc)
-            return
-
-        with rx.session() as session:
-            try:
-                assert_can_access_ats(session, ats_id, user_id, role_code)
-                context = self._build_document_context_with_session(session, ats_id)
-            except AccessDeniedError as exc:
-                self.documento_error = str(exc)
-                return
-
-            validation_errors = self._validate_document_context(context)
-            if validation_errors:
-                self.documento_error = "No se puede generar el PDF: " + " ".join(validation_errors)
-                return
-
-            try:
-                pdf_bytes = generate_pdf_bytes_from_template(
-                    context=context,
-                    template_path=template_path,
-                    engine=pdf_engine,
-                )
-            except Exception as exc:
-                self.documento_error = (
-                    "Error al generar el PDF desde plantilla DOCX: "
-                    f"{exc}"
-                )
-                return
-
-            uploaded_storage_path = ""
-            try:
-                self._lock_ats_row_for_document_generation(session, ats_id)
-                next_version = self._next_document_version_with_session(session, ats_id)
-            except Exception as exc:
-                session.rollback()
-                self.documento_error = f"Error calculando version del documento: {exc}"
-                return
-
-            code = str(context.get("ats", {}).get("codigo_publico") or f"ATS_{ats_id}")
-            file_name, storage_path = self._build_storage_target_for_document(
-                ats_id=ats_id,
-                codigo_publico=code,
-                version=next_version,
-            )
-
-            try:
-                upload_pdf_bytes(storage_path=storage_path, pdf_bytes=pdf_bytes)
-                uploaded_storage_path = storage_path
-            except Exception as exc:
-                session.rollback()
-                self.documento_error = f"Error subiendo PDF a Storage: {exc}"
-                return
-
-            row = AtsDocumento(
-                ats_id=ats_id,
-                tipo_documento="PDF",
-                nombre_archivo=file_name,
-                ruta_archivo=storage_path,
-                mime_type="application/pdf",
-                version=next_version,
-                generado_por_usuario_id=int(user_id or 0) or None,
-                created_at=datetime.utcnow(),
-            )
-            session.add(row)
-            try:
-                self._set_ats_status_with_session(
-                    session=session,
-                    ats_id=ats_id,
-                    target_estado_codigo=self.ATS_ESTADO_DOCUMENTO_GENERADO,
-                    user_id=user_id,
-                    role_code=role_code,
-                )
-                session.commit()
-            except (AccessDeniedError, RuntimeError) as exc:
-                self.documento_error = str(exc)
-                session.rollback()
-                if uploaded_storage_path:
-                    delete_file_if_exists(uploaded_storage_path)
-                return
-            except Exception as exc:
-                self.documento_error = f"Error guardando registro de documento ATS: {exc}"
-                session.rollback()
-                if uploaded_storage_path:
-                    delete_file_if_exists(uploaded_storage_path)
-                return
-
-            self.documento_generado_nombre = file_name
-            self.documento_generado_url = ""
-            try:
-                self.documento_generado_url = create_signed_file_url(
-                    storage_path=storage_path,
-                    expires_in_seconds=get_supabase_signed_url_ttl_seconds(),
-                    download_name=file_name,
-                )
-            except Exception as exc:
-                self.documento_error = f"Documento generado, pero fallo la URL firmada: {exc}"
-
-            self.documento_success = (
-                f"Documento generado correctamente (v{next_version}, motor {pdf_engine}): {file_name}"
-            )
-            self._load_documentos_generados_with_session(session, ats_id)
-            return rx.download(
-                data=pdf_bytes,
-                filename=file_name,
-                mime_type="application/pdf",
-            )
+        self.documento_error = (
+            "La generacion DOCX/PDF fue retirada. Usa /sst/documentos "
+            "para generar el HTML autocontenido vigente."
+        )
+        return rx.redirect("/sst/documentos")
 
     async def load_ats_by_codigo(self, codigo: str):
         self.form_error = ""

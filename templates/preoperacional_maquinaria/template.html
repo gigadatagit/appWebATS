@@ -1,0 +1,28 @@
+{% extends "_base.html" %}
+{% import "_macros.html" as ui %}
+{% block content %}
+<div class="section-title">Identificación general</div>
+<table class="form-table">
+  <tr><td class="label">Proceso</td><td>{{ general.get('proceso')|value }}</td><td class="label">Actividad</td><td>{{ general.get('actividad')|value }}</td></tr>
+  <tr><td class="label">Fecha de inicio / cierre</td><td colspan="3">{{ general.get('fecha_inicial')|value }} / {{ general.get('fecha_cierre')|value }}</td></tr>
+  <tr><td class="label">Hora inicio / fin operación</td><td>{{ general.get('hora_inicio_operacion')|value }} / {{ general.get('hora_fin_operacion')|value }}</td><td class="label">Responsable</td><td>{{ general.get('responsable_actividad')|value }} · {{ general.get('cargo_responsable')|value }}</td></tr>
+  <tr><td class="label">Máquina certificada</td><td>{{ ui.boolean_mark(general.get('maquina_certificada')) }}</td><td class="label">Origen</td><td>{% if general.get('importado_desde_movil') %}Aplicación móvil{% else %}Aplicación web{% endif %}</td></tr>
+</table>
+
+<div class="section-title">Máquina inspeccionada: {{ general.get('maquina_nombre_snapshot')|value }}</div>
+<div class="resource-panel">
+  <div class="resource-image">{% if recurso_principal.available %}<img src="{{ recurso_principal.data_uri }}" alt="Imagen de {{ general.get('maquina_nombre_snapshot')|value }}">{% else %}<span class="empty">{{ recurso_principal.message }}</span>{% endif %}</div>
+  <div class="resource-description"><strong>Descripción</strong><p class="prewrap">{{ general.get('maquina_descripcion_snapshot')|value }}</p></div>
+</div>
+
+{{ ui.checklist_tables(checklist_secciones) }}
+
+<div class="section-title">Operadores relacionados</div>
+{{ ui.workers_table(trabajadores) }}
+
+<div class="section-title">Observaciones y novedades</div>
+<table class="form-table"><tr><td class="prewrap">{{ general.get('observaciones')|value }}</td></tr></table>
+
+<div class="section-title">Responsables de verificación</div>
+{{ ui.signatures_grid(firmas) }}
+{% endblock %}

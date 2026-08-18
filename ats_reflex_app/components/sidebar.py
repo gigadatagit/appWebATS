@@ -34,6 +34,50 @@ def sidebar_link(label: str, href: str, icon_tag: str, active: bool = False) -> 
     )
 
 
+def dashboard_links(current_route: str) -> rx.Component:
+    return rx.fragment(
+        rx.divider(),
+        rx.text("Dashboards", color="#64748b", size="2", font_weight="600"),
+        sidebar_link("Dashboard SST", "/sst/dashboard", "layout_dashboard", active=current_route == "/sst/dashboard"),
+        sidebar_link(
+            "Preoperacionales",
+            "/sst/dashboard/preoperacionales",
+            "wrench",
+            active=current_route == "/sst/dashboard/preoperacionales",
+        ),
+        sidebar_link(
+            "Alturas",
+            "/sst/dashboard/alturas",
+            "mountain",
+            active=current_route == "/sst/dashboard/alturas",
+        ),
+        sidebar_link(
+            "Medios de acceso",
+            "/sst/dashboard/medios-acceso",
+            "waves_ladder",
+            active=current_route == "/sst/dashboard/medios-acceso",
+        ),
+        sidebar_link(
+            "Energias peligrosas",
+            "/sst/dashboard/energias-peligrosas",
+            "zap",
+            active=current_route == "/sst/dashboard/energias-peligrosas",
+        ),
+        sidebar_link(
+            "Trabajo caliente",
+            "/sst/dashboard/trabajo-caliente",
+            "flame",
+            active=current_route == "/sst/dashboard/trabajo-caliente",
+        ),
+        sidebar_link(
+            "ATS",
+            "/admin/dashboard",
+            "layout_dashboard",
+            active=current_route == "/admin/dashboard",
+        ),
+    )
+
+
 def sidebar(current_route: str = "/ats/formato", in_drawer: bool = False) -> rx.Component:
     return rx.box(
         rx.vstack(
@@ -44,18 +88,10 @@ def sidebar(current_route: str = "/ats/formato", in_drawer: bool = False) -> rx.
                 **INFO_SURFACE_STYLE,
             ),
             rx.divider(),
-            rx.text("Navegacion", color="#64748b", size="2", font_weight="600"),
+            rx.text("Formatos", color="#64748b", size="2", font_weight="600"),
             sidebar_link("Formato ATS", "/ats/formato", "clipboard_check", active=current_route == "/ats/formato"),
-            sidebar_link("Documentos", "/ats/documentos", "file_text", active=current_route == "/ats/documentos"),
-            rx.cond(
-                SessionState.is_admin,
-                sidebar_link(
-                    "Tablero de Administrador",
-                    "/admin/dashboard",
-                    "layout_dashboard",
-                    active=current_route == "/admin/dashboard",
-                ),
-            ),
+            sidebar_link("Documentos SST", "/sst/documentos", "file_text", active=current_route == "/sst/documentos"),
+            rx.cond(SessionState.is_admin, dashboard_links(current_route)),
             rx.spacer(),
             rx.button(
                 rx.hstack(
@@ -71,12 +107,15 @@ def sidebar(current_route: str = "/ats/formato", in_drawer: bool = False) -> rx.
                 **SECONDARY_BUTTON_STYLE,
             ),
             align="stretch",
-            height="100%",
+            min_height="100%",
             spacing="4",
         ),
         **CARD_STYLE,
         width="100%",
         min_height="auto" if in_drawer else {"base": "auto", "md": "calc(100vh - 2rem)"},
+        max_height="none" if in_drawer else {"base": "none", "md": "calc(100vh - 2rem)"},
+        overflow_y="visible" if in_drawer else {"base": "visible", "md": "auto"},
+        overscroll_behavior="auto" if in_drawer else "contain",
         position="relative" if in_drawer else {"base": "relative", "md": "sticky"},
         top="0" if in_drawer else "1rem",
     )

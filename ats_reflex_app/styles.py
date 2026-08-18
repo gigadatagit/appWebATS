@@ -284,10 +284,13 @@ MOBILE_NAV_BAR_STYLE = {
 MOBILE_DRAWER_PANEL_STYLE = {
     "width": "100%",
     "max_width": "320px",
-    "height": "100%",
+    "height": "100dvh",
+    "max_height": "100dvh",
     "bg": BG,
     "padding": "0.75rem",
     "display": "grid",
     "align_content": "start",
     "gap": "0.6rem",
+    "overflow_y": "auto",
+    "overscroll_behavior": "contain",
 }

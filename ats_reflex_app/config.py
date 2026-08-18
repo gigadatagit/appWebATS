@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import sys
 
 from dotenv import load_dotenv
 
@@ -9,7 +8,6 @@ DEFAULT_SQLITE_URL = "sqlite:///data/ats_app.db"
 DEFAULT_POSTGRES_SSLMODE = "require"
 DEFAULT_POSTGRES_PORT = "5432"
 DEFAULT_SUPABASE_STORAGE_BUCKET = "ATSDocumentos"
-DEFAULT_ATS_PDF_ENGINE = "word"
 DEFAULT_SIGNED_URL_TTL_SECONDS = 600
 
 load_dotenv()
@@ -90,23 +88,6 @@ def get_supabase_service_role_key() -> str:
 
 def get_supabase_storage_bucket() -> str:
     return os.getenv("SUPABASE_STORAGE_BUCKET", DEFAULT_SUPABASE_STORAGE_BUCKET).strip() or DEFAULT_SUPABASE_STORAGE_BUCKET
-
-
-def normalize_ats_pdf_engine(value: str | None) -> str:
-    raw = str(value or "").strip().lower()
-    if raw == "":
-        if sys.platform.startswith("linux"):
-            return "libreoffice"
-        return DEFAULT_ATS_PDF_ENGINE
-    if raw not in {"word", "libreoffice"}:
-        raise RuntimeError(
-            "Valor invalido para ATS_PDF_ENGINE. Usa 'word' o 'libreoffice'."
-        )
-    return raw
-
-
-def get_ats_pdf_engine() -> str:
-    return normalize_ats_pdf_engine(os.getenv("ATS_PDF_ENGINE", ""))
 
 
 def get_supabase_signed_url_ttl_seconds() -> int:

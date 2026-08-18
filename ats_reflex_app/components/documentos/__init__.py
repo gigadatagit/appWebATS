@@ -1,0 +1,2 @@
+"""Shared document UI components."""
+

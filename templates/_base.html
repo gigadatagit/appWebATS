@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ formato.nombre }} - {{ documento.codigo_publico }}</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --line: #6b7280;
+      --soft-line: #b7bec8;
+      --section: #d9dde3;
+      --subtle: #f1f3f5;
+      --accent: #17365d;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; color: var(--ink); background: #fff; }
+    body { font-family: Arial, Helvetica, "DejaVu Sans", sans-serif; font-size: 8.2pt; line-height: 1.25; }
+    .document { width: 100%; margin: 0 auto; }
+    .print-header { margin-bottom: 2.2mm; }
+    .header-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+    .header-table td { border: .25mm solid var(--line); padding: 1mm 1.4mm; vertical-align: middle; }
+    .header-logo { width: 28mm; height: 18mm; text-align: center; }
+    .header-logo img { display: block; width: 25mm; height: 15mm; margin: auto; object-fit: contain; }
+    .header-system { text-align: center; font-weight: 700; font-size: 8pt; }
+    .header-title { text-align: center; font-weight: 800; font-size: 10pt; text-transform: uppercase; }
+    .header-meta { width: 41mm; font-size: 7.2pt; }
+    .document-reference { margin-top: 1mm; text-align: right; font-size: 6.7pt; color: #4b5563; }
+    .section-title { margin: 2.2mm 0 0; padding: 1.1mm 1.5mm; border: .25mm solid var(--line); background: var(--section); font-weight: 800; text-align: center; text-transform: uppercase; }
+    .section-note { margin: 0; padding: 1mm 1.5mm; border: .25mm solid var(--soft-line); border-top: 0; color: #4b5563; font-size: 7pt; }
+    table.form-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+    .form-table th, .form-table td { border: .25mm solid var(--line); padding: 1mm 1.25mm; vertical-align: top; overflow-wrap: anywhere; }
+    .form-table th { background: var(--subtle); font-weight: 700; text-align: center; }
+    .label { background: var(--subtle); font-weight: 700; }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    .prewrap { white-space: pre-wrap; }
+    .muted { color: #6b7280; }
+    .empty { color: #6b7280; font-style: italic; }
+    .check { display: inline-flex; align-items: center; justify-content: center; width: 3.5mm; height: 3.5mm; border: .25mm solid #111; margin: 0 .7mm; font-size: 8pt; font-weight: 800; }
+    .resource-panel { display: grid; grid-template-columns: minmax(42mm, 1fr) 2fr; border: .25mm solid var(--line); border-top: 0; }
+    .resource-image, .resource-description { min-height: 32mm; padding: 2mm; }
+    .resource-image { border-right: .25mm solid var(--line); display: flex; align-items: center; justify-content: center; }
+    .resource-image img { display: block; max-width: 100%; width: 48mm; height: 31mm; object-fit: contain; }
+    .signature-image { display: block; width: 34mm; height: 11mm; margin: 0 auto; object-fit: contain; }
+    .signature-placeholder { display: flex; min-height: 11mm; align-items: center; justify-content: center; color: #6b7280; font-style: italic; }
+    .signature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: .25mm solid var(--line); border-top: 0; }
+    .signature-card { min-height: 31mm; padding: 1.5mm; border-right: .25mm solid var(--line); text-align: center; break-inside: avoid; }
+    .signature-card:nth-child(3n) { border-right: 0; }
+    .signature-role { margin-top: 1mm; padding-top: 1mm; border-top: .25mm solid var(--line); font-weight: 800; text-transform: uppercase; }
+    .signature-detail { margin-top: .7mm; font-size: 7pt; }
+    .document-footer { margin-top: 2mm; padding-top: 1mm; border-top: .25mm solid var(--soft-line); text-align: center; color: #6b7280; font-size: 6.5pt; }
+    .page-break { break-before: page; }
+    tr, .signature-card, .resource-panel { break-inside: avoid; }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    @page {
+      size: {% block page_size %}Letter portrait{% endblock %};
+      margin: 10mm;
+    }
+    @media print {
+      body { margin: 0; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .document { width: auto; }
+      .print-header { display: table-header-group; }
+      thead { display: table-header-group; }
+      tr, .signature-card, .resource-panel { break-inside: avoid; }
+      .page-break { break-before: page; }
+    }
+    @media screen {
+      body { background: #e5e7eb; padding: 12px; }
+      .document { max-width: 216mm; padding: 10mm; background: #fff; box-shadow: 0 2px 14px rgba(0,0,0,.14); }
+    }
+  </style>
+</head>
+<body>
+  <div class="document">
+    <header class="print-header">
+      <table class="header-table">
+        <tr>
+          <td class="header-logo" rowspan="2"><img src="{{ logo_data_uri }}" alt="Logo GIGA"></td>
+          <td class="header-system">SISTEMA DE GESTIÓN DE SEGURIDAD Y SALUD EN EL TRABAJO</td>
+          <td class="header-meta">Código: <strong>{{ formato.codigo_encabezado }}</strong></td>
+        </tr>
+        <tr>
+          <td class="header-title">{{ formato.nombre }}</td>
+          <td class="header-meta">Versión: <strong>{{ formato.version_encabezado }}</strong><br>Fecha: <strong>{{ formato.fecha_vigencia }}</strong></td>
+        </tr>
+      </table>
+      <div class="document-reference">Registro: <strong>{{ documento.codigo_publico }}</strong>{% if documento.ats_codigo_publico %} · ATS: <strong>{{ documento.ats_codigo_publico }}</strong>{% endif %}</div>
+    </header>
+
+    <main>{% block content %}{% endblock %}</main>
+
+    <footer class="document-footer">Documento estático generado desde el registro {{ documento.codigo_publico }}.</footer>
+  </div>
+</body>
+</html>

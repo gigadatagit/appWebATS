@@ -1709,7 +1709,7 @@ def documento_section() -> rx.Component:
             ),
             _flow_action_bar(
                 _action_prev(AtsFormState.set_step(1), label="Volver a identificación"),
-                _action_continue("Ir a documentos", rx.redirect("/ats/documentos"), icon_tag="external_link"),
+                _action_continue("Ir a documentos", rx.redirect("/sst/documentos"), icon_tag="external_link"),
             ),
             spacing="4",
             align="stretch",

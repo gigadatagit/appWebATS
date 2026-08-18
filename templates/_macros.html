@@ -1,0 +1,80 @@
+{% macro boolean_mark(value) -%}
+  Sí <span class="check">{% if value %}X{% endif %}</span>
+  No <span class="check">{% if not value %}X{% endif %}</span>
+{%- endmacro %}
+
+{% macro response_mark(value) -%}
+  <span class="check">{% if value == 'SI' %}X{% endif %}</span> Sí
+  <span class="check">{% if value == 'NO' %}X{% endif %}</span> No
+  <span class="check">{% if value == 'N/A' %}X{% endif %}</span> N/A
+{%- endmacro %}
+
+{% macro signature_image(item) -%}
+  {% if item.firma_disponible %}
+    <img class="signature-image" src="{{ item.firma_data_uri }}" alt="Firma de {{ item.nombre|value }}">
+  {% else %}
+    <div class="signature-placeholder">Firma no registrada</div>
+  {% endif %}
+{%- endmacro %}
+
+{% macro workers_table(workers) -%}
+  <table class="form-table">
+    <thead><tr><th style="width:7mm">N.º</th><th>Nombre</th><th style="width:25mm">Tipo ID</th><th style="width:31mm">Documento</th><th>Cargo</th><th style="width:39mm">Firma</th></tr></thead>
+    <tbody>
+      {% for worker in workers %}
+      <tr>
+        <td class="center">{{ worker.numero_orden or loop.index }}</td>
+        <td>{{ worker.nombre|value }}</td>
+        <td class="center">{{ worker.tipo_identificacion|value }}</td>
+        <td>{{ worker.documento|value }}</td>
+        <td>{{ worker.cargo|value }}</td>
+        <td>{{ signature_image(worker) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty center">No hay trabajadores registrados.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{%- endmacro %}
+
+{% macro checklist_tables(sections) -%}
+  {% for section in sections %}
+    <div class="section-title">{{ section.nombre }}</div>
+    <table class="form-table">
+      <thead><tr><th style="width:8mm">N.º</th><th>Ítem de verificación</th><th style="width:42mm">Respuesta</th><th style="width:47mm">Observación / detalle</th></tr></thead>
+      <tbody>
+        {% for item in section["items"] %}
+        <tr>
+          <td class="center">{{ item.numero_orden or loop.index }}</td>
+          <td>{{ item.pregunta|value }}{% if item.ayuda_texto %}<div class="muted">{{ item.ayuda_texto }}</div>{% endif %}</td>
+          <td class="center">{{ response_mark(item.respuesta) }}</td>
+          <td class="prewrap">{{ item.observacion|value }}{% if item.descripcion_otro %}<br><strong>Detalle:</strong> {{ item.descripcion_otro }}{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty center">No hay respuestas registradas en esta sección.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="section-title">Lista de chequeo</div>
+    <div class="section-note empty">No hay respuestas de lista de chequeo registradas.</div>
+  {% endfor %}
+{%- endmacro %}
+
+{% macro signatures_grid(signatures) -%}
+  <div class="signature-grid">
+    {% for signature in signatures %}
+    <div class="signature-card">
+      {{ signature_image(signature) }}
+      <div class="signature-role">{{ signature.tipo_nombre|value }}</div>
+      <div class="signature-detail"><strong>Nombre:</strong> {{ signature.nombre|value }}</div>
+      {% if signature.cedula %}<div class="signature-detail"><strong>Cédula:</strong> {{ signature.cedula }}</div>{% endif %}
+      {% if signature.cargo %}<div class="signature-detail"><strong>Cargo:</strong> {{ signature.cargo }}</div>{% endif %}
+      {% if signature.celular %}<div class="signature-detail"><strong>Celular:</strong> {{ signature.celular }}</div>{% endif %}
+      {% if signature.matricula %}<div class="signature-detail"><strong>Matrícula:</strong> {{ signature.matricula }}</div>{% endif %}
+    </div>
+    {% else %}
+    <div class="signature-card empty">No hay responsables o firmas configurados.</div>
+    {% endfor %}
+  </div>
+{%- endmacro %}
