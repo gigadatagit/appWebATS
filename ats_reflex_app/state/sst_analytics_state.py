@@ -12,17 +12,8 @@ from ..services.analytics_sst import (
     load_siso_user_options,
 )
 from ..services.sst_formats import SST_FORMATS, get_sst_format, sst_format_options
+from ..styles import DASHBOARD_GREEN_SCALE
 from .session_state import SessionState
-
-
-SST_DASHBOARD_COLOR_SCALE: tuple[str, ...] = (
-    "#14532d",
-    "#15803d",
-    "#22c55e",
-    "#0f766e",
-    "#0284c7",
-    "#7c3aed",
-)
 
 
 class SSTAnalyticsState(rx.State):
@@ -79,7 +70,7 @@ class SSTAnalyticsState(rx.State):
         colored: list[dict] = []
         for index, row in enumerate(rows):
             item = dict(row)
-            item[color_key] = SST_DASHBOARD_COLOR_SCALE[index % len(SST_DASHBOARD_COLOR_SCALE)]
+            item[color_key] = DASHBOARD_GREEN_SCALE[index % len(DASHBOARD_GREEN_SCALE)]
             colored.append(item)
         return colored
 

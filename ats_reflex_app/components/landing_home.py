@@ -483,8 +483,8 @@ def modules_section() -> rx.Component:
                     module_card(
                         "clipboard_check",
                         "ATS",
-                        "Captura datos generales, tareas, peligros, controles, observaciones y cierre.",
-                        "/ats/formato",
+                        "Consulta el historial documental ATS y los archivos generados.",
+                        "/sst/documentos",
                     ),
                     module_card(
                         "tractor",

@@ -1,6 +1,27 @@
 GREEN = "#22c55e"
 GREEN_DARK = "#15803d"
 GREEN_SOFT = "#dcfce7"
+
+# Escala categorica compartida por todos los dashboards. Los tonos avanzan
+# desde el verde institucional mas oscuro hasta un verde claro que conserva
+# contraste sobre las tarjetas blancas.
+DASHBOARD_GREEN_SCALE: tuple[str, ...] = (
+    "#14532d",
+    "#166534",
+    "#18743a",
+    "#15803d",
+    "#178e46",
+    "#16a34a",
+    "#22c55e",
+    "#36cc6d",
+    "#4ade80",
+    "#5fe58d",
+    "#71e99a",
+    "#86efac",
+)
+DASHBOARD_GREEN_DARK = DASHBOARD_GREEN_SCALE[0]
+DASHBOARD_GREEN_LIGHT = DASHBOARD_GREEN_SCALE[-1]
+
 BG = "#f1f5f9"
 CARD = "white"
 BORDER = "#e2e8f0"

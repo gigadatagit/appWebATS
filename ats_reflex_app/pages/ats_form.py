@@ -4,8 +4,7 @@ import reflex as rx
 
 from ..components.cards import workflow_step_card, workflow_step_chip
 from ..components.signature_canvas import signature_canvas
-from ..state import AtsFormState
-from ..template import protected_page
+from ..state import AtsFormState, SessionState
 from ..styles import (
     CARD_STYLE,
     CHECKLIST_GRID_STYLE,
@@ -1889,47 +1888,15 @@ def _signature_canvas_sync_script() -> rx.Component:
     )
 
 
-@rx.page(route="/ats/formato", title="Formato ATS", on_load=AtsFormState.load_initial_data)
+@rx.page(route="/ats/formato", title="Formato ATS", on_load=SessionState.redirect_legacy_ats_form)
 def ats_form_page() -> rx.Component:
-    content = rx.vstack(
-        _signature_canvas_sync_script(),
-        section_selector(),
-        current_section(),
-        rx.box(
-            rx.heading("ATS recientes", size="5"),
-            rx.text("Listado reciente segun el entorno de base de datos configurado.", color="#64748b"),
-            rx.table.root(
-                rx.table.header(
-                    rx.table.row(
-                        rx.table.column_header_cell("Código"),
-                        rx.table.column_header_cell("Empresa"),
-                        rx.table.column_header_cell("Fecha"),
-                        rx.table.column_header_cell("Estado"),
-                    )
-                ),
-                rx.table.body(
-                    rx.foreach(
-                        AtsFormState.ats_recientes,
-                        lambda row: rx.table.row(
-                            rx.table.cell(row["codigo_publico"]),
-                            rx.table.cell(row["empresa_persona_ejecuta"]),
-                            rx.table.cell(row["fecha_elaboracion"]),
-                            rx.table.cell(row["estado"]),
-                        ),
-                    )
-                ),
-                width="100%",
-            ),
-            **CARD_STYLE,
-            width="100%",
+    return rx.center(
+        rx.vstack(
+            rx.spinner(size="3"),
+            rx.text("Redirigiendo...", color="#64748b"),
+            spacing="3",
+            align="center",
         ),
+        min_height="100vh",
         width="100%",
-        align="stretch",
-        spacing="4",
-    )
-    return protected_page(
-        "Formato ATS",
-        content,
-        subtitle="Completa el flujo por fases y guarda cada sección para avanzar con control.",
-        current_route="/ats/formato",
     )

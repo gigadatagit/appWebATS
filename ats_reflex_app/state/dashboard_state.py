@@ -6,12 +6,13 @@ import reflex as rx
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from ..styles import DASHBOARD_GREEN_DARK, DASHBOARD_GREEN_LIGHT
 from .session_state import SessionState
 
 
 class DashboardState(rx.State):
-    BRAND_GREEN_LIGHT: str = "#dcfce7"
-    BRAND_GREEN_DARK: str = "#14532d"
+    BRAND_GREEN_LIGHT: str = DASHBOARD_GREEN_LIGHT
+    BRAND_GREEN_DARK: str = DASHBOARD_GREEN_DARK
 
     selected_siso_user_id: int = 0
     filter_fecha_inicio: str = ""
@@ -85,8 +86,8 @@ class DashboardState(rx.State):
     def _build_alto_riesgo_pie(cls, alto: int, no_alto: int) -> list[dict]:
         alto_value = int(alto or 0)
         no_alto_value = int(no_alto or 0)
-        dark_fill = "#14532d"
-        light_fill = "#dcfce7"
+        dark_fill = DASHBOARD_GREEN_DARK
+        light_fill = DASHBOARD_GREEN_LIGHT
 
         # Regla estable en empate: Alto riesgo oscuro, No alto riesgo claro.
         if alto_value >= no_alto_value:

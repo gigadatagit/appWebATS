@@ -78,7 +78,7 @@ def dashboard_links(current_route: str) -> rx.Component:
     )
 
 
-def sidebar(current_route: str = "/ats/formato", in_drawer: bool = False) -> rx.Component:
+def sidebar(current_route: str = "/sst/documentos", in_drawer: bool = False) -> rx.Component:
     return rx.box(
         rx.vstack(
             rx.box(
@@ -89,7 +89,6 @@ def sidebar(current_route: str = "/ats/formato", in_drawer: bool = False) -> rx.
             ),
             rx.divider(),
             rx.text("Formatos", color="#64748b", size="2", font_weight="600"),
-            sidebar_link("Formato ATS", "/ats/formato", "clipboard_check", active=current_route == "/ats/formato"),
             sidebar_link("Documentos SST", "/sst/documentos", "file_text", active=current_route == "/sst/documentos"),
             rx.cond(SessionState.is_admin, dashboard_links(current_route)),
             rx.spacer(),

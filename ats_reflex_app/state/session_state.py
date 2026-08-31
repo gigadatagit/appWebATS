@@ -61,12 +61,20 @@ class SessionState(rx.State):
         role_code = str(self.current_user_role_codigo or self.rol_codigo or "").strip().upper()
         if role_code == "ADMIN":
             return "/sst/dashboard"
-        return "/ats/formato"
+        return "/sst/documentos"
+
+    def _resolve_legacy_ats_form_route(self) -> str:
+        if not self.is_authenticated:
+            return "/login"
+        return "/sst/documentos"
 
     def redirect_authenticated_home(self):
         if not self.is_authenticated:
             return
         return rx.redirect(self._resolve_authenticated_home_route())
+
+    def redirect_legacy_ats_form(self):
+        return rx.redirect(self._resolve_legacy_ats_form_route())
 
     def set_email(self, email: str):
         self.email = email
